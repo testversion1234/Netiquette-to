@@ -55,3 +55,11 @@ export const FALLBACK_CONFIG = {
   appId: "1:178454261761:web:6f4bb26f0a3b39eb0a5000",
   measurementId: "G-HEVQ0TFE4Y"
   };
+// --- Anonyme Anmeldung sicherstellen ---
+export async function ensureAnonSignIn(auth) {
+  if (!auth.currentUser) {
+    const { signInAnonymously } =
+      await import("https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js");
+    await signInAnonymously(auth);
+  }
+}
