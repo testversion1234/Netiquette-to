@@ -111,7 +111,7 @@ if (!window.__presenceSetup) {
   setupPresenceAndAutoCleanup(roomId, nick);
   window.__presenceSetup = true;
 }
-  const room = roomSelectEl.value;
+  const room = (roomSelectEl.value || '5a');
   try {
     await joinRoom(nick, room);
     roomNameEl.textContent = room;
