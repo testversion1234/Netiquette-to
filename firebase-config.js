@@ -45,7 +45,7 @@ export function checkMessageModeration(text) {
 }
 // firebase-config.js — trage hier deine Web-App Config ein
 export const FALLBACK_CONFIG = {
- apiKey: "AIzaSyBK9iwsc9kpAW006Jmh197ToCSQbTk-X34",
+  apiKey: "AIzaSyBK9iwsc9kpAW006Jmh197ToCSQbTk-X34",
   authDomain: "netiquette-74729.firebaseapp.com",
   databaseURL: "https://netiquette-74729-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "netiquette-74729",
