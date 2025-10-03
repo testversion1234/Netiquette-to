@@ -101,7 +101,7 @@ export async function sendMessage(nick, rawText){
   const text = violated ? '⛔️ [automatisch entfernt]' : rawText;
 
   await push(ref(db, `rooms/${roomId}/messages`), {
-    uid, nick, text, violated, ts: Date.now()
+    uid, nick, text, violated, ts: serverTimestamp()
   });
 
   if (violated) await adjustScore(-3);
