@@ -217,5 +217,50 @@
     }
   </script>
 <script type="module" src="./room_chat_bind.js"></script>
+<script type="module">
+  import { joinRoom, sendMessage, watchMessages } from './jc.js';
+  const joinBtn = document.getElementById('joinBtn');
+  const sendBtn = document.getElementById('sendBtn');
+  const roomSel = document.getElementById('roomSelect');
+  const nickInput = document.getElementById('nickChip');
+  const msgInput = document.getElementById('messages');
+  const chatLog = document.getElementById('messages');
+
+  let currentRoom = null;
+  let currentNick = "";
+
+  function appendMsg(user, text, violated, ts) {
+    if (!chatLog) return;
+    const div = document.createElement('div');
+    div.className = 'msg';
+    div.innerHTML = `<span class="who"></span> <span class="txt"></span>`;
+    div.querySelector('.who').textContent = (user || '??') + ':';
+    div.querySelector('.txt').textContent = text || '';
+    chatLog.appendChild(div);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  }
+
+  if (joinBtn) {
+    joinBtn.addEventListener('click', async () => {
+      currentRoom = roomSel ? (roomSel.value || '').trim() : currentRoom;
+      currentNick = (nickInput ? nickInput.value : '') || 'Gast';
+      await joinRoom(currentNick, currentRoom);
+      const cb = (msg) => appendMsg(msg.user || msg.nick, msg.text, msg.violated, msg.ts);
+      watchMessages(currentRoom, (data)=>appendMsg(data.user||data.nick, data.text, data.violated, data.ts));
+      if (sendBtn) sendBtn.disabled = false;
+      if (msgInput) msgInput.focus();
+    });
+  }
+
+  if (sendBtn) {
+    sendBtn.addEventListener('click', async () => {
+      if (!currentRoom || !currentNick) return;
+      const text = (msgInput ? msgInput.value.trim() : '');
+      if (!text) return;
+      await sendMessage(currentNick, text);
+      if (msgInput) msgInput.value = '';
+    });
+  }
+</script>
 </body>
 </html>
