@@ -1,97 +1,99 @@
 <!DOCTYPE html>
+
 <html lang="de">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MP · Klassenchat</title>
-  <style>
-    :root{--bg:#f6f7fb;--fg:#1f2937;--brand:#2563eb;--card:#fff;--muted:#6b7280;}
-    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--fg)}
-    header{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--brand);color:#fff}
-    header img.logo{width:56px;height:56px;border-radius:50%;background:#fff;object-fit:cover}
-    header .titles h1{margin:0;font-size:18px} header .titles p{margin:0;opacity:.9;font-size:13px}
-    main{display:grid;grid-template-columns:260px 1fr;gap:16px;max-width:1200px;margin:0 auto;padding:16px}
-    aside,section{background:var(--card);border-radius:12px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
-    aside{padding:12px}
-    h3{margin:6px 0 8px;font-size:14px;color:var(--muted)}
-    #boardList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-    #boardList li{padding:8px 10px;background:#f3f4f6;border-radius:10px;display:flex;justify-content:space-between;align-items:center}
-    #presenceList{list-style:none;margin:8px 0 0;padding:0;max-height:180px;overflow:auto}
-    #presenceList li{padding:6px 8px;border-radius:8px;margin:4px 0;background:#f9fafb;display:flex;justify-content:space-between}
-    #scoreBox{margin-top:8px;padding:10px;border-radius:10px;background:#eef2ff}
-    #scoreValue{font-weight:700}
-    section{display:flex;flex-direction:column;overflow:hidden}
-    #roomBar{display:flex;gap:8px;padding:12px;border-bottom:1px solid #e5e7eb;align-items:center;flex-wrap:wrap}
-    #chatLog{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
-    .msg{padding:10px 12px;border-radius:12px;background:#f9fafb;border:1px solid #eef2f7}
-    .me{background:#ecfeff;border-color:#cffafe;align-self:flex-end}
-    .meta{font-size:12px;color:var(--muted);margin-bottom:4px}
-    #composer{display:flex;gap:8px;padding:12px;border-top:1px solid #e5e7eb}
-    #composer input[type=text]{flex:1;padding:12px;border:1px solid #e5e7eb;border-radius:12px;font-size:15px}
-    #composer button{padding:12px 16px;border:0;border-radius:12px;background:var(--brand);color:#fff;font-weight:600}
-    .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;background:#111827;color:#fff;padding:10px 14px;border-radius:10px;opacity:0;transition:opacity .2s}
-    .toast.show{opacity:1}
+<meta charset="utf-8"/>
+<title>Willkommen zur Nettiquette</title>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<style>
+    :root{
+      --blue:#1976d2;
+      --bg:#f7f9fc;
+      --card:#fff;
+      --ink:#333;
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      margin:0;background:var(--bg);color:var(--ink);
+    }
+    header{
+      background:var(--blue);color:#fff;text-align:center;padding:24px 12px;
+    }
+    header h1{margin:0 0 6px 0;font-weight:700}
+    header p{margin:0;opacity:.9}
+    main{
+      max-width:760px;margin:24px auto;background:var(--card);padding:20px;
+      border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.07);
+    }
+    h2{margin-top:0}
+    .row{margin:14px 0}
+    label{display:block;margin-bottom:6px;font-weight:600}
+    select,input{
+      width:100%;padding:10px;border:1px solid #ccd6e0;border-radius:8px;
+      background:#fff;outline:none;
+    }
+    .btn{
+      display:inline-block;background:var(--blue);color:#fff;border:none;
+      border-radius:10px;padding:10px 16px;cursor:pointer
+    }
+    .btn:hover{filter:brightness(.95)}
+    .rules{
+      background:#eef5ff;border-left:5px solid var(--blue);
+      padding:14px;border-radius:10px;margin-top:18px
+    }
+    .rules ul{margin:8px 0 0 18px}
+    .qr{text-align:center;margin-top:22px}
+    .qr img{width:220px;height:220px;display:block;margin:10px auto;border-radius:8px;box-shadow:0 6px 16px rgba(0,0,0,.08)}
+    .muted{color:#5c6a78;font-size:.95rem}
   </style>
 </head>
 <body>
-  <header>
-    <!-- MP-Logo Platzhalter: ersetze src durch deine vorhandene Base64-Data-URL oder mp-logo.png -->
-    <img class="logo" src="mp-logo.png" alt="MP">
-    <div class="titles">
-      <h1>MP · Klassenchat</h1>
-      <p>Demokratie · Soziales Handeln im Internet</p>
-    </div>
-  </header>
-
-  <main>
-    <aside>
-      <h3>Board-Liste</h3>
-      <!-- Behalte deine Boards exakt wie früher: IDs/Struktur bleiben frei.
-           Fürs Skript reicht das select#roomSelect. Die Liste dient nur der Optik/Navi. -->
-      <ul id="boardList">
-        <li>5a <span>•</span></li>
-        <li>5b <span>•</span></li>
-        <li>M‑Zweig <span>•</span></li>
-        <li>Lehrerzimmer <span>•</span></li>
-      </ul>
-
-      <h3 style="margin-top:12px;">Profil</h3>
-      <input id="nickname" type="text" placeholder="Nickname (z. B. Max)" autocomplete="off" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:10px">
-      <select id="roomSelect" style="width:100%;margin-top:8px;padding:10px;border:1px solid #e5e7eb;border-radius:10px">
-        <option value="5a">Raum 5a</option>
-        <option value="5b">Raum 5b</option>
-        <option value="M-Zweig">M-Zweig</option>
-        <option value="Lehrerzimmer">Lehrerzimmer</option>
-      </select>
-      <button id="joinBtn" style="margin-top:8px;width:100%;">Beitreten</button>
-
-      <h3 style="margin-top:16px;">Anwesend</h3>
-      <ul id="presenceList"></ul>
-
-      <div id="scoreBox">Score: <span id="scoreValue">0</span></div>
-    </aside>
-
-    <section>
-      <div id="roomBar">
-        <span>Aktueller Raum: <strong id="roomName">–</strong></span>
-        <span style="color:var(--muted);font-size:13px">(Verstöße werden ausgeblendet, geben Punktabzug)</span>
-      </div>
-      <div id="chatLog" aria-live="polite"></div>
-      <div id="composer">
-        <input id="message" type="text" placeholder="Nachricht schreiben…" autocomplete="off" disabled>
-        <button id="sendBtn" disabled>Senden</button>
-      </div>
-    </section>
-  </main>
-
-  <!-- Firebase SDK v9 (modular) -->
-  <script type="module" src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js"></script>
-  <script type="module" src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js"></script>
-  <script type="module" src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js"></script>
-
-  <!-- Konfiguration & Logik -->
-  <script type="module" src="./firebase-config.js"></script>
-  <script type="module" src="./jc.js"></script>
-  <script type="module" src="./chatroom.js"></script>
+<header>
+<h1>Willkommen zur Nettiquette</h1>
+<p>Demokratie &amp; soziales Handeln im Netz</p>
+</header>
+<main>
+<h2>Wähle deine Klasse &amp; Nickname</h2>
+<div class="row">
+<label for="klasse">Klasse:</label>
+<select id="klasse">
+<option>Klasse 5a</option>
+<option>Klasse 5b</option>
+<option>Klasse 6a</option>
+<option>Klasse 6b</option>
+</select>
+</div>
+<div class="row">
+<label for="nick">Nickname:</label>
+<input id="nick" placeholder="Dein Name" type="text"/>
+<div style="margin-top:8px">
+<button class="btn" id="openRoomBtn">Raum öffnen</button>
+</div>
+</div>
+<div class="rules">
+<h3>📋 Regeln für den Chatroom</h3>
+<ul>
+<li>Formuliere in der <b>Ich‑Form</b> („Ich denke…“).</li>
+<li>Keine Beleidigungen/Schimpfwörter, keine Unterstellungen.</li>
+<li>Kein <b>BRÜLLEN IN GROSSBUCHSTABEN</b>, keine Emoji‑Flut.</li>
+<li>Freundlich bleiben – auch bei Kritik. Nachfragen hilft.</li>
+</ul>
+<p class="muted">Du bekommst Punkte für höfliches Verhalten. Verstöße kosten Punkte.</p>
+</div>
+<div class="qr">
+<p>📱 Scanne den QR‑Code und öffne den Chat direkt auf deinem iPad:</p>
+<img alt="QR-Code zum Klassenchat" src="netiquette_chat_qr_final.png"/>
+</div>
+</main>
+<script>
+    document.getElementById('openRoomBtn').addEventListener('click', function () {
+      const room = document.getElementById('klasse').value.trim();
+      const nick = document.getElementById('nick').value.trim();
+      if (!nick) { alert('Bitte gib einen Nickname ein.'); return; }
+      const url = 'room_chat.html' + '?room=' + encodeURIComponent(room) + '&nick=' + encodeURIComponent(nick);
+      window.location.href = url;
+    });
+  </script>
 </body>
 </html>
