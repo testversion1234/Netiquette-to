@@ -1,3 +1,48 @@
+// === PATCH START: Firebase init guard + presence auto-cleanup ===
+// Add this block AT THE VERY TOP of chatroom.js (before any getDatabase()/ref() calls)
+import { getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { FALLBACK_CONFIG } from "./firebase-config.js";
+
+// Initialize Firebase app once if not already initialized
+if (!getApps().length) {
+  initializeApp(FALLBACK_CONFIG);
+}
+
+// Presence + Auto-Cleanup when last user leaves
+import { getDatabase, ref, set, onValue, onDisconnect, remove }
+  from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+export function setupPresenceAndAutoCleanup(roomId, nickname) {
+  const db = getDatabase();
+  const myPresenceRef  = ref(db, `rooms/${roomId}/online/${nickname}`);
+  const onlineRef      = ref(db, `rooms/${roomId}/online`);
+  const messagesRef    = ref(db, `rooms/${roomId}/messages`);
+
+  // Set own presence and auto-remove on disconnect
+  set(myPresenceRef, true);
+  onDisconnect(myPresenceRef).remove();
+
+  // Arm/disarm cleanup depending on whether I'm the only user
+  let cleanupArmed = false;
+  onValue(onlineRef, async (snap) => {
+    const online = snap.val() || {};
+    const names  = Object.keys(online);
+    const iAmOnlyOne = (names.length === 1 && names[0] === nickname);
+
+    if (iAmOnlyOne && !cleanupArmed) {
+      await onDisconnect(messagesRef).remove(); // wipe messages when I leave
+      cleanupArmed = True;
+    } else if (!iAmOnlyOne && cleanupArmed) {
+      await onDisconnect(messagesRef).cancel(); // disarm cleanup
+      cleanupArmed = false;
+    }
+  });
+}
+// === PATCH END ===
+
+// === CALL SITE (insert once where roomId and nick are known; e.g. after user joined)
+// if (!window.__presenceSetup) { setupPresenceAndAutoCleanup(roomId, nick); window.__presenceSetup = true; }
+// === END CALL SITE ===
 // -----------------
 // Moderationslisten
 // -----------------
@@ -61,6 +106,11 @@ let unwatchMessages = null;
 // Join
 joinBtn.addEventListener('click', async () => {
   const nick = (nicknameEl.value || 'Gast').trim();
+  // Präsenz/Auto-Cleanup EINMALIG aktivieren
+if (!window.__presenceSetup) {
+  setupPresenceAndAutoCleanup(roomId, nick);
+  window.__presenceSetup = true;
+}
   const room = roomSelectEl.value;
   try {
     await joinRoom(nick, room);
