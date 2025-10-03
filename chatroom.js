@@ -1,0 +1,90 @@
+// chatroom.js — verdrahtet DOM mit jc.js. Keine Layoutänderungen.
+import { joinRoom, leaveRoom, watchPresence, watchMessages, sendMessage, watchScore, currentUid } from './jc.js';
+
+// DOM refs (IDs müssen im bestehenden Layout vorhanden sein)
+const nicknameEl = document.getElementById('nickname');
+const roomSelectEl = document.getElementById('roomSelect');
+const joinBtn = document.getElementById('joinBtn');
+const roomNameEl = document.getElementById('roomName');
+const presenceList = document.getElementById('presenceList');
+const chatLogEl = document.getElementById('chatLog');
+const msgEl = document.getElementById('message');
+const sendBtn = document.getElementById('sendBtn');
+
+let unwatchPresence = null;
+let unwatchMessages = null;
+
+// Join
+joinBtn.addEventListener('click', async () => {
+  const nick = (nicknameEl.value || 'Gast').trim();
+  const room = roomSelectEl.value;
+  try {
+    await joinRoom(nick, room);
+    roomNameEl.textContent = room;
+    msgEl.disabled = false; sendBtn.disabled = false; msgEl.focus();
+    toast(`Raum „${room}“ beigetreten.`);
+
+    // Presence
+    if (unwatchPresence) unwatchPresence();
+    unwatchPresence = watchPresence((data)=>{
+      presenceList.innerHTML = '';
+      Object.values(data).forEach((p)=>{
+        const li = document.createElement('li');
+        li.innerHTML = `<span>${p.nick || 'Gast'}</span><span>•</span>`;
+        presenceList.appendChild(li);
+      });
+    });
+
+    // Score UI
+    const scoreEl = document.getElementById('scoreValue');
+    watchScore(v => scoreEl.textContent = v);
+
+    // Messages
+    if (unwatchMessages) unwatchMessages();
+    chatLogEl.innerHTML = '';
+    unwatchMessages = watchMessages(renderMessage, removeMessage);
+  } catch (e) {
+    toast(e.message || 'Fehler beim Beitreten');
+  }
+});
+
+sendBtn.addEventListener('click', doSend);
+msgEl.addEventListener('keydown', (e)=> { if (e.key === 'Enter') doSend(); });
+
+async function doSend(){
+  const text = msgEl.value.trim();
+  if (!text) return;
+  const nick = (nicknameEl.value || 'Gast').trim();
+  try {
+    const { violated } = await sendMessage(nick, text);
+    if (violated) toast('Verstoß erkannt: –3 Punkte, Nachricht ausgeblendet.');
+    msgEl.value='';
+  } catch(e){
+    toast('Senden fehlgeschlagen.');
+  }
+}
+
+function renderMessage(key, data){
+  const el = document.createElement('div');
+  el.className = 'msg' + (data.uid === currentUid() ? ' me' : '');
+  const when = new Date(data.ts || Date.now()).toLocaleTimeString();
+  el.innerHTML = `<div class="meta">${data.nick} · ${when}${data.violated ? ' · ⚠️ Verstoß' : ''}</div>
+                  <div class="text"></div>`;
+  el.querySelector('.text').textContent = data.text;
+  el.dataset.key = key;
+  chatLogEl.appendChild(el);
+  chatLogEl.scrollTop = chatLogEl.scrollHeight;
+}
+function removeMessage(key){
+  const n = [...chatLogEl.children].find(c => c.dataset.key === key);
+  if (n) n.remove();
+}
+
+// Toast helper
+let toastTimer=null;
+function toast(msg){
+  let t = document.querySelector('.toast');
+  if(!t){ t=document.createElement('div'); t.className='toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2200);
+}

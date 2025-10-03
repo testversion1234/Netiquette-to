@@ -1,0 +1,32 @@
+{
+  "rules": {
+    ".read": true,
+    "rooms": {
+      "$room": {
+        "messages": {
+          ".indexOn": ["ts"],
+          "$msg": {
+            ".read": true,
+            ".write": "auth != null && newData.child('uid').val() === auth.uid && newData.child('ts').isNumber() && newData.child('ts').val() <= now + 5000 && newData.child('ts').val() >= now - 5000"
+          }
+        },
+        "presence": {
+          "$uid": {
+            ".read": true,
+            ".write": "auth != null && $uid === auth.uid"
+          }
+        },
+        "scores": {
+          "$uid": {
+            ".read": true,
+            ".write": "auth != null && $uid === auth.uid"
+          }
+        }
+      }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
