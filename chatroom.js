@@ -1,13 +1,16 @@
-// === PATCH START: Firebase init guard + presence auto-cleanup ===
-// Add this block AT THE VERY TOP of chatroom.js (before any getDatabase()/ref() calls)
+// === Firebase Init (muss GANZ oben stehen, vor jedem getDatabase/ref) ===
 import { getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 import { FALLBACK_CONFIG } from "./firebase-config.js";
 
-// Initialize Firebase app once if not already initialized
 if (!getApps().length) {
   initializeApp(FALLBACK_CONFIG);
+  console.log("[chat] Firebase init done", FALLBACK_CONFIG.projectId);
+} else {
+  console.log("[chat] Firebase already inited");
 }
 
+// Danach (wie bei dir schon vorhanden):
+import { getDatabase, ref, set, onValue, onDisconnect, remove, push, onChildAdded }
 // Presence + Auto-Cleanup when last user leaves
 import { getDatabase, ref, set, onValue, onDisconnect, remove }
   from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
