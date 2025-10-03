@@ -109,6 +109,7 @@ let unwatchMessages = null;
 // Join
 joinBtn.addEventListener('click', async () => {
   const nick = (nicknameEl.value || 'Gast').trim();
+  await ensureAnonSignIn(auth);
   // Präsenz/Auto-Cleanup EINMALIG aktivieren
 if (!window.__presenceSetup) {
   setupPresenceAndAutoCleanup(roomId, nick);
