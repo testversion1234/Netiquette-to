@@ -43,14 +43,23 @@ export function checkMessageModeration(text) {
 
   return { blocked: false };
 }
-// firebase-config.js — trage hier deine Web-App Config ein
-export const FALLBACK_CONFIG = {
+// firebase-config.js
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+const firebaseConfig = {
   apiKey: "AIzaSyBK9iwsc9kpAW006Jmh197ToCSQbTk-X34",
   authDomain: "netiquette-74729.firebaseapp.com",
   databaseURL: "https://netiquette-74729-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "netiquette-74729",
   storageBucket: "netiquette-74729.appspot.com",
   messagingSenderId: "178454261761",
-  appId: "1:178454261761:web:89dbb4e052766b550a5000",
-  measurementId: "G-3LYGL489D9"
+  appId: "1:178454261761:web:6f4bb26f0a3b39eb0a5000",
+  measurementId: "G-HEVQ0TFE4Y"
 };
+
+// Initialisierung
+export const app = initializeApp(firebaseConfig);
+export const db = getDatabase(app);
+export const auth = getAuth(app);
