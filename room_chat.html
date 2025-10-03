@@ -109,15 +109,15 @@
       "wichskopf","lutscher","schwachkopf","hosenscheißer","armes würstchen","versager",
       "nullnummer","vollpfosten","schwachmat","drecksack","arschgeige","hirnloser",
       "klappspaten","trottelchen","blödi","spinner","opferkind","heulsuse","wurst",
-      "lackaffe","honkkopf","hirnamputiert","blödkopf","stinker","furzkopf","kotzbrocken","vergasen","hitler","Heil"
+      "lackaffe","honkkopf","hirnamputiert","blödkopf","stinker","furzkopf","kotzbrocken"
     ];
 
     const SEXIST = [
-      "hure","schlampe","fotze","bitch","tussi","schnepfe","wichser","arschloch","lespe","votze"
+      "hure","schlampe","fotze","bitch","tussi","schnepfe","wichser","arschloch"
     ];
 
     const RACIST = [
-      "neger","nigger","judensau","schwarzer","farbiger","muselmann","musel","noob","homo","jude"
+      "neger","nigger","judensau","schwarzer","farbiger","muselmann","musel","noob","homo"
     ];
 
     // Beleidigungen werden nur erkannt – nicht angezeigt.
@@ -206,6 +206,14 @@
         scoreEl.textContent = myScore;
       });
       cleanupOld(room);
+    }
+  </script>
+<!-- Firebase Initialisierung: MUSS vor chatroom.js kommen -->
+  <script type="module">
+    import { getApps, initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+    import { FALLBACK_CONFIG } from "./firebase-config.js";
+    if (!getApps().length) {
+      initializeApp(FALLBACK_CONFIG);
     }
   </script>
 </body>
