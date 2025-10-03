@@ -42,7 +42,6 @@ export function checkMessageModeration(text) {
   if (RX_RUDE   && RX_RUDE.test(text))    return { blocked: true, reason: "Beleidigung" };
 
   return { blocked: false };
-}import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
 
 // Nur die Config exportieren, NICHT direkt initialisieren
 export const FALLBACK_CONFIG = {
