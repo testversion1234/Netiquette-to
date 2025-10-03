@@ -49,7 +49,7 @@ export const FALLBACK_CONFIG = {
   authDomain: "netiquette-74729.firebaseapp.com",
   databaseURL: "https://netiquette-74729-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "netiquette-74729",
-  storageBucket: "netiquette-74729.firebasestorage.app",
+  storageBucket: "netiquette-74729.appspot.com",
   messagingSenderId: "178454261761",
   appId: "1:178454261761:web:89dbb4e052766b550a5000",
   measurementId: "G-3LYGL489D9"
