@@ -132,3 +132,33 @@ function toast(msg){
   t.textContent = msg; t.classList.add('show');
   clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2200);
 }
+import { getDatabase, ref, set, onValue, onDisconnect, remove }
+  from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+
+function setupPresenceAndAutoCleanup(roomId, nickname) {
+  const db = getDatabase();
+  const myPresenceRef  = ref(db, `rooms/${roomId}/online/${nickname}`);
+  const onlineRef      = ref(db, `rooms/${roomId}/online`);
+  const messagesRef    = ref(db, `rooms/${roomId}/messages`);
+
+  // Präsenz setzen und bei Disconnect löschen
+  set(myPresenceRef, true);
+  onDisconnect(myPresenceRef).remove();
+
+  let cleanupArmed = false;
+  onValue(onlineRef, async (snap) => {
+    const online = snap.val() || {};
+    const names  = Object.keys(online);
+    const iAmOnlyOne = (names.length === 1 && names[0] === nickname);
+
+    if (iAmOnlyOne && !cleanupArmed) {
+      // Ich bin der letzte → beim Disconnect: Nachrichten löschen
+      await onDisconnect(messagesRef).remove();
+      cleanupArmed = true;
+    } else if (!iAmOnlyOne && cleanupArmed) {
+      // Nicht mehr alleine → Cleanup deaktivieren
+      await onDisconnect(messagesRef).cancel();
+      cleanupArmed = false;
+    }
+  });
+}
