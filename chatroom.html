@@ -112,5 +112,201 @@
       }, 200);
     })();
   </script>
+  <!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nettiquette – Raum</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --ink:#0f1f39; --accent:#1976d2; --card:#fff;
+      --muted:#6b7280; --you:#e7f8f0; --other:#eef2ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    header{background:var(--accent);color:#fff;text-align:center;padding:24px 14px;position:relative}
+    header .logo{width:96px;height:96px;border-radius:50%;border:4px solid #fff;box-shadow:0 6px 18px rgba(0,0,0,.18);object-fit:cover;display:block;margin:0 auto 10px}
+    header h1{margin:6px 0 2px;font-size:clamp(20px,3.4vw,32px)}
+    header p{margin:0;opacity:.95}
+    header .score{position:absolute;right:14px;top:14px;background:rgba(255,255,255,.16);padding:6px 10px;border-radius:10px;font-weight:700}
+    main{max-width:980px;margin:16px auto 24px;padding:0 14px}
+    .bar{display:flex;gap:10px;flex-wrap:wrap;background:var(--card);border-radius:12px;
+         box-shadow:0 10px 26px rgba(0,0,0,.06);padding:12px;margin-bottom:14px}
+    .pill{background:#f1f5ff;color:#243b7b;border-radius:999px;padding:8px 12px;font-weight:600}
+    #messages{background:var(--card);border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.06);
+              min-height:220px;max-height:58vh;overflow:auto;padding:12px}
+    .row{display:flex;margin:10px 0}
+    .bubble{max-width:78%;padding:10px 12px;border-radius:12px}
+    .you{background:var(--you);margin-left:auto;border-top-right-radius:0}
+    .other{background:var(--other);border-top-left-radius:0}
+    .meta{font-size:.85rem;color:var(--muted);margin-bottom:4px}
+    .controls{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:10px}
+    .controls input{padding:12px;border:1px solid #d1d5db;border-radius:10px}
+    .controls button{padding:12px 14px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:700}
+    footer{margin-top:16px}
+    .author{background:var(--card);border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.06);padding:14px;text-align:center}
+    .author img{display:block;margin:10px auto 0;width:96px;height:96px;border-radius:12px;object-fit:cover;box-shadow:0 6px 18px rgba(0,0,0,.10)}
+  </style>
+</head>
+<body>
+  <header>
+    <!-- Oberes Logo (Base64 oder Pfad) -->
+    <img class="logo" id="logoTop" alt="Logo" />
+    <h1>Nettiquette – Klassenchat</h1>
+    <p>Demokratie · Soziales Handeln im Internet</p>
+    <div class="score">Mein Score: <span id="myScore">0</span></div>
+  </header>
+
+  <main>
+    <div class="bar">
+      <div class="pill">Raum: <span id="roomLbl">–</span></div>
+      <div class="pill">Nickname: <span id="nickLbl">–</span></div>
+    </div>
+
+    <section id="messages"></section>
+
+    <div class="controls">
+      <input id="chat-input" type="text" placeholder="Schreibe deine Nachricht …" />
+      <button id="send-btn">Senden</button>
+    </div>
+
+    <footer>
+      <div class="author">
+        ✍️ Erstellt von <strong>Benjamin Hetebrüg</strong><br/>
+        <a href="https://digitales.schulamt.info" target="_blank" rel="noopener">digitales.schulamt.info</a><br/>
+        <a href="mailto:benjamin.hetebrueg@schulen.nuernberg.de">benjamin.hetebrueg@schulen.nuernberg.de</a>
+        <!-- Unteres Logo (Base64 oder Pfad) -->
+        <img id="logoBottom" alt="Logo 2" />
+      </div>
+    </footer>
+  </main>
+
+  <!-- HIER DEIN UNVERÄNDERTER SCRIPTBLOCK AUS room_chat.html -->
+  <!-- Beispiel: deine Param-Initialisierung, Firestore/Listener, Render-Logik usw. -->
+  <script>
+  // Beispiel: Raum/Nick Labels setzen (belässt deine Logik unangetastet)
+  const q=new URLSearchParams(location.search);
+  document.getElementById('roomLbl').textContent = q.get('room') || '–';
+  document.getElementById('nickLbl').textContent = q.get('nick') || '–';
+
+  // Logos optional setzen (falls du Base64 nutzen willst, hier eintragen):
+  const LOGO_TOP = "";     // z.B. "data:image/png;base64,AAAA…"
+  const LOGO_BOTTOM = "";  // z.B. "data:image/png;base64,BBBB…"
+  if (LOGO_TOP) document.getElementById('logoTop').src = LOGO_TOP;
+  if (LOGO_BOTTOM) document.getElementById('logoBottom').src = LOGO_BOTTOM;
+
+  // WICHTIG:
+  // An dieser Stelle fügst du DEINEN kompletten, bisher funktionierenden Script-Code ein
+  // (Senden, onSnapshot/Listener, Bewertung, Auto-TTL usw.) – unverändert!
+
+  // Beispiel: vorhandenen Handler verknüpfen (damit das Layout sofort „lebt“)
+  const inputEl = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('send-btn');
+  if (typeof sendMessage === 'function') {
+    sendBtn.addEventListener('click', e => { e.preventDefault(); sendMessage(e); });
+    inputEl.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); sendMessage(e); }});
+  }
+  </script>
+</body>
+</html>
+  <!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nettiquette – Raum</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --ink:#0f1f39; --accent:#1976d2; --card:#fff;
+      --muted:#6b7280; --you:#e7f8f0; --other:#eef2ff;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    header{background:var(--accent);color:#fff;text-align:center;padding:24px 14px;position:relative}
+    header .logo{width:96px;height:96px;border-radius:50%;border:4px solid #fff;box-shadow:0 6px 18px rgba(0,0,0,.18);object-fit:cover;display:block;margin:0 auto 10px}
+    header h1{margin:6px 0 2px;font-size:clamp(20px,3.4vw,32px)}
+    header p{margin:0;opacity:.95}
+    header .score{position:absolute;right:14px;top:14px;background:rgba(255,255,255,.16);padding:6px 10px;border-radius:10px;font-weight:700}
+    main{max-width:980px;margin:16px auto 24px;padding:0 14px}
+    .bar{display:flex;gap:10px;flex-wrap:wrap;background:var(--card);border-radius:12px;
+         box-shadow:0 10px 26px rgba(0,0,0,.06);padding:12px;margin-bottom:14px}
+    .pill{background:#f1f5ff;color:#243b7b;border-radius:999px;padding:8px 12px;font-weight:600}
+    #messages{background:var(--card);border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.06);
+              min-height:220px;max-height:58vh;overflow:auto;padding:12px}
+    .row{display:flex;margin:10px 0}
+    .bubble{max-width:78%;padding:10px 12px;border-radius:12px}
+    .you{background:var(--you);margin-left:auto;border-top-right-radius:0}
+    .other{background:var(--other);border-top-left-radius:0}
+    .meta{font-size:.85rem;color:var(--muted);margin-bottom:4px}
+    .controls{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:10px}
+    .controls input{padding:12px;border:1px solid #d1d5db;border-radius:10px}
+    .controls button{padding:12px 14px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:700}
+    footer{margin-top:16px}
+    .author{background:var(--card);border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.06);padding:14px;text-align:center}
+    .author img{display:block;margin:10px auto 0;width:96px;height:96px;border-radius:12px;object-fit:cover;box-shadow:0 6px 18px rgba(0,0,0,.10)}
+  </style>
+</head>
+<body>
+  <header>
+    <!-- Oberes Logo (Base64 oder Pfad) -->
+    <img class="logo" id="logoTop" alt="Logo" />
+    <h1>Nettiquette – Klassenchat</h1>
+    <p>Demokratie · Soziales Handeln im Internet</p>
+    <div class="score">Mein Score: <span id="myScore">0</span></div>
+  </header>
+
+  <main>
+    <div class="bar">
+      <div class="pill">Raum: <span id="roomLbl">–</span></div>
+      <div class="pill">Nickname: <span id="nickLbl">–</span></div>
+    </div>
+
+    <section id="messages"></section>
+
+    <div class="controls">
+      <input id="chat-input" type="text" placeholder="Schreibe deine Nachricht …" />
+      <button id="send-btn">Senden</button>
+    </div>
+
+    <footer>
+      <div class="author">
+        ✍️ Erstellt von <strong>Benjamin Hetebrüg</strong><br/>
+        <a href="https://digitales.schulamt.info" target="_blank" rel="noopener">digitales.schulamt.info</a><br/>
+        <a href="mailto:benjamin.hetebrueg@schulen.nuernberg.de">benjamin.hetebrueg@schulen.nuernberg.de</a>
+        <!-- Unteres Logo (Base64 oder Pfad) -->
+        <img id="logoBottom" alt="Logo 2" />
+      </div>
+    </footer>
+  </main>
+
+  <!-- HIER DEIN UNVERÄNDERTER SCRIPTBLOCK AUS room_chat.html -->
+  <!-- Beispiel: deine Param-Initialisierung, Firestore/Listener, Render-Logik usw. -->
+  <script>
+  // Beispiel: Raum/Nick Labels setzen (belässt deine Logik unangetastet)
+  const q=new URLSearchParams(location.search);
+  document.getElementById('roomLbl').textContent = q.get('room') || '–';
+  document.getElementById('nickLbl').textContent = q.get('nick') || '–';
+
+  // Logos optional setzen (falls du Base64 nutzen willst, hier eintragen):
+  const LOGO_TOP = "";     // z.B. "data:image/png;base64,AAAA…"
+  const LOGO_BOTTOM = "";  // z.B. "data:image/png;base64,BBBB…"
+  if (LOGO_TOP) document.getElementById('logoTop').src = LOGO_TOP;
+  if (LOGO_BOTTOM) document.getElementById('logoBottom').src = LOGO_BOTTOM;
+
+  // WICHTIG:
+  // An dieser Stelle fügst du DEINEN kompletten, bisher funktionierenden Script-Code ein
+  // (Senden, onSnapshot/Listener, Bewertung, Auto-TTL usw.) – unverändert!
+
+  // Beispiel: vorhandenen Handler verknüpfen (damit das Layout sofort „lebt“)
+  const inputEl = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('send-btn');
+  if (typeof sendMessage === 'function') {
+    sendBtn.addEventListener('click', e => { e.preventDefault(); sendMessage(e); });
+    inputEl.addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); sendMessage(e); }});
+  }
+  </script>
+</body>
+</html>
 </body>
 </html>
