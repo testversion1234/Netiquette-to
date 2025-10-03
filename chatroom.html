@@ -75,15 +75,37 @@
   <script type="module" src="./jc.js"></script>
   <script type="module" src="./chatroom.js"></script>
 
-  <!-- Auto-Join aus URL-Parametern -->
+  <!-- Auto-Join aus URL-Parametern (robust + Normalisierung) -->
   <script>
     (function(){
       const qs = new URLSearchParams(window.location.search);
-      const room = qs.get('room') || '';
-      const nick = qs.get('nick') || '';
-      if(room){ document.getElementById('roomSelect').value = room; }
-      if(nick){ document.getElementById('nickname').value = nick; }
-      // Kurze Verzögerung, damit Module geladen sind, dann automatisch joinen
+      const rawRoom = (qs.get('room') || '').trim();
+      const nick    = (qs.get('nick') || '').trim();
+
+      // Normalisiere Raumbezeichnungen ("Klasse 5a" → "5a", "Raum 5b" → "5b")
+      function normalizeRoom(s){
+        return s.replace(/^(klasse|raum)\s*/i, '').trim();
+      }
+      const room = normalizeRoom(rawRoom);
+
+      const sel = document.getElementById('roomSelect');
+      if (room){
+        // Falls Option nicht existiert, temporär hinzufügen, damit beide Geräte denselben Wert bekommen
+        let opt = Array.from(sel.options).find(o => o.value === room);
+        if(!opt){
+          const o = document.createElement('option');
+          o.value = room; o.textContent = 'Raum ' + room;
+          sel.appendChild(o);
+        }
+        sel.value = room;
+      }
+      if (nick){ document.getElementById('nickname').value = nick; }
+
+      // Raumname im Header anzeigen
+      const rn = document.getElementById('roomName');
+      if (rn && room) rn.textContent = room;
+
+      // kurze Verzögerung, dann automatisch beitreten
       setTimeout(function(){
         const btn = document.getElementById('joinBtn');
         if(btn) btn.click();
