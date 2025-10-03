@@ -44,6 +44,7 @@ export function checkMessageModeration(text) {
   return { blocked: false };
 
 // Nur die Config exportieren, NICHT direkt initialisieren
+// firebase-config.js — export only (no imports, no initialize here)
 export const FALLBACK_CONFIG = {
   apiKey: "AIzaSyBK9iwsc9kpAW006Jmh197ToCSQbTk-X34",
   authDomain: "netiquette-74729.firebaseapp.com",
@@ -53,4 +54,4 @@ export const FALLBACK_CONFIG = {
   messagingSenderId: "178454261761",
   appId: "1:178454261761:web:6f4bb26f0a3b39eb0a5000",
   measurementId: "G-HEVQ0TFE4Y"
-};
+  };
