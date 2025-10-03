@@ -4,8 +4,7 @@ import { FALLBACK_CONFIG } from "./firebase-config.js";
 
 if (!getApps().length) {
   initializeApp(FALLBACK_CONFIG);
-  console.log("[chat] Firebase init done", FALLBACK_CONFIG.projectId);
-} else {
+  console.log("[Debug-Ausgabe]", "Firebase databaseURL:", FALLBACK_CONFIG.databaseURL);
   console.log("[chat] Firebase already inited");
 }
 
