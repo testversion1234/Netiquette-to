@@ -68,7 +68,7 @@
 <label for="nick">Nickname:</label>
 <input data-role="nickname" id="nickname" placeholder="Dein Name" type="text"/>
 <div style="margin-top:8px">
-<button class="btn" data-role="joinBtn" id="joinBtn">Raum öffnen</button>
+<button class="btn" data-role="joinBtn" id="joinBtn" type="button">Raum öffnen</button>
 </div>
 </div>
 <div class="rules">
@@ -95,5 +95,21 @@
       window.location.href = url;
     });
   </script>
-<script src="./firebase-config.js" type="module"></script><script src="./jc.js" type="module"></script><script src="./chatroom.js" type="module"></script></body>
+<script src="./firebase-config.js" type="module"></script><script src="./jc.js" type="module"></script><script src="./chatroom.js" type="module"></script><script>
+    (function(){
+      const btn = document.getElementById('joinBtn');
+      if(!btn) return;
+      btn.addEventListener('click', function(){
+        var nickEl = document.getElementById('nickname');
+        var roomEl = document.getElementById('roomSelect');
+        var nick = (nickEl && nickEl.value) ? nickEl.value.trim() : '';
+        var room = (roomEl && roomEl.value) ? roomEl.value.trim() : '';
+        if(!room){ alert('Bitte zuerst eine Klasse/Raum wählen.'); return; }
+        if(!nick){ nick = 'Gast'; }
+        var url = 'chatroom.html?room=' + encodeURIComponent(room) + '&nick=' + encodeURIComponent(nick);
+        // Neues Fenster/Tab öffnen (Popup-Blocker-safe, da aus Click ausgelöst)
+        window.open(url, '_blank');
+      });
+    })();
+    </script></body>
 </html>
