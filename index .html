@@ -123,7 +123,7 @@ button.primary:disabled{opacity:.6;cursor:not-allowed}
     var room = normalizeRoom(cls && cls.value);
     var n = (nick && nick.value || "").trim();
     if (!n){ alert("Bitte Nickname eingeben."); return; }
-    var base = "RuneChat.html";
+    var base = "room_chat_with_logos.html";
     var dir = location.pathname.replace(/[^\/]*$/, "");
     var url = dir + base + "?room=" + encodeURIComponent(room) + "&nick=" + encodeURIComponent(n);
     if (mode === "challenge") url += "&challenge=1";
