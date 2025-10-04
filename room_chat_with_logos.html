@@ -164,9 +164,34 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
     setTimeout(function(){ if (p && p.parentNode) p.parentNode.removeChild(p); }, 3000);
   }
 
+// --- 15-minute auto-clear (no presence, no functions) ---
+  const INACTIVITY_MS = 15 * 60 * 1000;
+
+  function nowMs(){ return Date.now(); }
+
+  function scheduleLocalClear(messagesRef, roomRef){
+    // Clears messages after INACTIVITY_MS of no new messages while this client is open
+    let timer = null;
+    const reset = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        messagesRef.remove();
+        // record when we cleared locally
+        roomRef.child('meta/clearedAt').set(firebase.database.ServerValue.TIMESTAMP);
+      }, INACTIVITY_MS);
+    };
+    return { reset };
+  }
+
 function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
   ready(function(){
-    try { firebase.initializeApp(firebaseConfig); try { firebase.analytics(); } catch(e){} }
+    try {
+      // start local inactivity timer on load (will reset on first message)
+      // (messagesRef defined later)
+ firebase.initializeApp(firebaseConfig); try {
+      // start local inactivity timer on load (will reset on first message)
+      // (messagesRef defined later)
+ firebase.analytics(); } catch(e){} }
     catch(err){ showErr(null, "initializeApp failed: " + (err && err.message || err)); return; }
 
     const db = firebase.database();
@@ -187,6 +212,23 @@ function ready(fn){ if (document.readyState !== 'loading') fn(); else document.a
     if (nickLabel) nickLabel.textContent = nick || '—';
 
     const path = 'rooms/' + encodeURIComponent(room) + '/messages';
+const roomRef = db.ref('rooms/' + encodeURIComponent(room));
+    const messagesRef = roomRef.child('messages');
+    const metaRef = roomRef.child('meta');
+
+    // If room was scheduled to be cleared and deadline passed, clear on join
+    metaRef.child('cleanupAt').once('value').then(snap => {
+      const cleanupAt = snap.val();
+      if (cleanupAt && nowMs() > cleanupAt) {
+        messagesRef.remove();
+        metaRef.child('cleanupAt').remove();
+        metaRef.child('clearedAt').set(firebase.database.ServerValue.TIMESTAMP);
+      }
+    });
+
+    // Local inactivity timer: reset whenever a new message arrives
+    const localClear = scheduleLocalClear(messagesRef, roomRef);
+
 
     function renderMessage(m){
       const p = document.createElement('p');
@@ -197,9 +239,13 @@ function ready(fn){ if (document.readyState !== 'loading') fn(); else document.a
 
     // Realtime: lesen
     try {
+      // start local inactivity timer on load (will reset on first message)
+      // (messagesRef defined later)
+
       db.ref(path).limitToLast(100).on('child_added', function(snap){
         const m = snap.val();
         renderMessage(m);
+        if (localClear) localClear.reset();
         // Punkte für positive Wörter & Ich-Form beim Empfang
         updateScore(scoreEl, positiveDelta(m && m.text));
       }, function(err){ showErr(chat, 'on(child_added) denied: ' + (err && err.message || err)); });
@@ -225,6 +271,10 @@ function ready(fn){ if (document.readyState !== 'loading') fn(); else document.a
       db.ref(path).push(payload, function(err){
         if (err) showErr(chat, 'push failed: ' + (err && err.message || err));
       });
+      // update meta timestamps and schedule cleanup (client-side computed)
+      metaRef.child('lastMessageTs').set(firebase.database.ServerValue.TIMESTAMP);
+      metaRef.child('cleanupAt').set(Date.now() + INACTIVITY_MS);
+    
 
       // lokale Pluspunkte (positive Wörter + Ich-Form) für eigenen Beitrag
       updateScore(scoreEl, positiveDelta(t));
