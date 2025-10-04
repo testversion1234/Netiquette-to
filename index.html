@@ -83,17 +83,103 @@ button.primary:disabled{opacity:.6;cursor:not-allowed}
 
 <script>
 (function(){
+  // Helper
   function $(id){ return document.getElementById(id); }
-  var btn = $('openRoom'), cls = $('cls'), nick = $('nick');
-  if(!btn || !cls || !nick) return;
-  btn.addEventListener('click', function(ev){
-    ev.preventDefault();
-    var room = (cls.value||'').trim();
-    var n    = (nick.value||'').trim();
-    if(!room || !n){ alert('Bitte Raum und Nickname eingeben.'); return; }
-    var url = 'room_chat_with_logos.html?room=' + encodeURIComponent(room) + '&nick=' + encodeURIComponent(n);
-    window.open(url, '_blank');
+
+  // --- Allowed rooms ---
+  var ROOMS = ["5a","5b","6a","6b","7a","7b","8a","8b","9a","9b","10a","10b"];
+
+  // Elements
+  var cls = $("cls");
+  var nick = $("nick");
+  var btnOpen = $("openRoom");
+
+  // If #cls doesn't exist, do nothing
+  if (!cls) return;
+
+  // Initialize #cls with first allowed value if empty / invalid
+  function normalizeRoom(value){
+    if (!value) return ROOMS[0];
+    var v = String(value).toLowerCase().trim();
+    return ROOMS.indexOf(v) >= 0 ? v : ROOMS[0];
+  }
+  cls.value = normalizeRoom(cls.value);
+
+  // --- Build minimal "slider" UI next to #cls (no HTML/CSS edits in file) ---
+  // container
+  var wrap = document.createElement("div");
+  wrap.setAttribute("aria-label","Klassenraum-Auswahl");
+  wrap.style.display = "flex";
+  wrap.style.gap = "8px";
+  wrap.style.alignItems = "center";
+  wrap.style.marginTop = "6px";
+
+  // prev button
+  var prev = document.createElement("button");
+  prev.type = "button";
+  prev.textContent = "‹";
+  prev.title = "Vorheriger Raum";
+  prev.style.padding = "6px 10px";
+
+  // label (current room)
+  var label = document.createElement("span");
+  label.textContent = cls.value.toUpperCase();
+  label.style.fontWeight = "600";
+
+  // next button
+  var next = document.createElement("button");
+  next.type = "button";
+  next.textContent = "›";
+  next.title = "Nächster Raum";
+  next.style.padding = "6px 10px";
+
+  wrap.appendChild(prev);
+  wrap.appendChild(label);
+  wrap.appendChild(next);
+
+  // insert right after the #cls input
+  if (cls.parentNode) {
+    if (cls.nextSibling) cls.parentNode.insertBefore(wrap, cls.nextSibling);
+    else cls.parentNode.appendChild(wrap);
+  } else {
+    document.body.appendChild(wrap);
+  }
+
+  // current index
+  var idx = ROOMS.indexOf(String(cls.value).toLowerCase().trim());
+  if (idx < 0) idx = 0;
+
+  function updateUI(){
+    cls.value = ROOMS[idx];
+    label.textContent = ROOMS[idx].toUpperCase();
+  }
+
+  prev.addEventListener("click", function(){
+    idx = (idx - 1 + ROOMS.length) % ROOMS.length;
+    updateUI();
   });
+  next.addEventListener("click", function(){
+    idx = (idx + 1) % ROOMS.length;
+    updateUI();
+  });
+
+  // Allow left/right arrow keys to slide when #cls focused
+  cls.addEventListener("keydown", function(e){
+    if (e.key === "ArrowLeft"){ e.preventDefault(); prev.click(); }
+    if (e.key === "ArrowRight"){ e.preventDefault(); next.click(); }
+  });
+
+  // --- Existing open behavior ---
+  if (btnOpen) {
+    btnOpen.addEventListener("click", function(ev){
+      ev.preventDefault();
+      var room = normalizeRoom(cls.value);
+      var n = (nick && nick.value || "").trim();
+      if (!n) { alert("Bitte Nickname eingeben."); return; }
+      var url = "room_chat_with_logos.html?room=" + encodeURIComponent(room) + "&nick=" + encodeURIComponent(n);
+      window.open(url, "_blank");
+    });
+  }
 })();
 </script>
 </body>
