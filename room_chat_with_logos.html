@@ -73,9 +73,7 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
   };
 
   // ===== Wortlisten =====
-  const GOOD = [
-    "bitte","danke","schön","super","toll","gut gemacht","klasse","cool","nett","freundlich","hilfe","hilfsbereit"
-  ];
+  const GOOD = ["bitte", "danke", "schön", "super", "toll", "klasse", "cool", "nett", "lieb", "freundlich", "höflich", "hilfreich", "fleißig", "respektvoll", "ruhig", "ehrlich", "fair", "aufmerksam", "motiviert", "hilfsbereit", "mutig", "stark", "tapfer", "geduldig", "liebevoll", "fröhlich", "achtsam", "friedlich", "großartig", "positiv", "sympathisch", "verständnisvoll", "zuvorkommend", "das ist lieb", "das ist nett", "das ist schön", "das gefällt mir", "gut gemacht", "sehr gut", "ich mag dich", "ich finde das gut", "vielen dank", "du hast recht", "das war fair", "das war freundlich", "das war super", "das ist toll", "gute idee", "ich freue mich", "ich helfe dir gerne", "ich finde das klasse"];
   const BAD_RACIST = [
     "heil hitler","judenschwein","nigger","neger","jude","moslem","kanake","ausländer raus",
     "scheiß türke","scheiss türke","scheiß jude","scheiss jude"
@@ -155,7 +153,18 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
     console.log('[CHAT-ERROR]', text);
   }
 
-  function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
+  // Positive, auto-fading encouragement notes (no layout changes)
+  function showPositiveNote(container, text){
+    var p = document.createElement('p');
+    p.textContent = text;
+    p.style.color = '#059669';   // green-ish
+    p.style.fontWeight = '600';
+    p.style.margin = '6px 0';
+    (container || document.body).appendChild(p);
+    setTimeout(function(){ if (p && p.parentNode) p.parentNode.removeChild(p); }, 3000);
+  }
+
+function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
   ready(function(){
     try { firebase.initializeApp(firebaseConfig); try { firebase.analytics(); } catch(e){} }
     catch(err){ showErr(null, "initializeApp failed: " + (err && err.message || err)); return; }
@@ -219,6 +228,17 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 
       // lokale Pluspunkte (positive Wörter + Ich-Form) für eigenen Beitrag
       updateScore(scoreEl, positiveDelta(t));
+      // Encouragement notes (Ich-Form / Positiv)
+      var ich = hasIchForm(t);
+      var pos = (function(){ 
+        var dt = 0; 
+        var tt = t.toLowerCase(); 
+        for (var i=0;i<GOOD.length;i++){ if (tt.indexOf(GOOD[i]) !== -1) dt++; } 
+        return dt > 0; 
+      })();
+      if (ich && pos) { showPositiveNote(chat, "🌈 Richtig stark – positives Ich-Statement!"); }
+      else if (ich)   { showPositiveNote(chat, "😊 Super, dass du in der Ich-Form schreibst!"); }
+      else if (pos)   { showPositiveNote(chat, "🌟 Toll, wie freundlich du bist!"); }
 
       if (msg){ msg.value=''; msg.focus(); }
     }
