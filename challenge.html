@@ -164,6 +164,22 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
     setTimeout(function(){ if (p && p.parentNode) p.parentNode.removeChild(p); }, 3000);
   }
 
+// --- 30-minute auto-clear (no presence, serverless) ---
+  const INACTIVITY_MS = 30 * 60 * 1000; // 30 Minuten
+
+  function scheduleLocalClear(messagesRef, roomRef){
+    let timer = null;
+    const reset = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        messagesRef.remove();
+        roomRef.child('meta/clearedAt').set(firebase.database.ServerValue.TIMESTAMP);
+        roomRef.child('meta/cleanupAt').remove();
+      }, INACTIVITY_MS);
+    };
+    return { reset };
+  }
+
 function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
   ready(function(){
     try { firebase.initializeApp(firebaseConfig); try { firebase.analytics(); } catch(e){} }
@@ -189,6 +205,22 @@ if (roomLabel) roomLabel.textContent = room || '—';
     if (nickLabel) nickLabel.textContent = nick || '—';
 
     const path = 'rooms/' + encodeURIComponent(room) + '/messages';
+const roomRef = db.ref('rooms/' + encodeURIComponent(room));
+    const messagesRef = roomRef.child('messages');
+    const metaRef = roomRef.child('meta');
+
+    // Wenn eine aufgeschobene Löschung überfällig ist, jetzt bereinigen
+    metaRef.child('cleanupAt').once('value').then(snap => {
+      const cleanupAt = snap.val();
+      if (cleanupAt && Date.now() > cleanupAt) {
+        messagesRef.remove();
+        metaRef.child('cleanupAt').remove();
+        metaRef.child('clearedAt').set(firebase.database.ServerValue.TIMESTAMP);
+      }
+    });
+
+    // Lokaler Inaktivitäts-Timer (wird bei jeder Nachricht zurückgesetzt)
+    const localClear = scheduleLocalClear(messagesRef, roomRef);
 const roomBase = 'rooms/' + encodeURIComponent(room);
     // Challenge scoreboard
     const scoreboardRef = db.ref(roomBase + '/scoreboard');
@@ -238,6 +270,7 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
       db.ref(path).limitToLast(100).on('child_added', function(snap){
         const m = snap.val();
         renderMessage(m);
+        if (typeof localClear !== 'undefined') localClear.reset();
         // Punkte für positive Wörter & Ich-Form beim Empfang
         updateScore(scoreEl, positiveDelta(m && m.text));
       }, function(err){ showErr(chat, 'on(child_added) denied: ' + (err && err.message || err)); });
@@ -264,6 +297,10 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
       db.ref(path).push(payload, function(err){
         if (err) showErr(chat, 'push failed: ' + (err && err.message || err));
       });
+      // Meta-Infos für geplante Bereinigung
+      metaRef.child('lastMessageTs').set(firebase.database.ServerValue.TIMESTAMP);
+      metaRef.child('cleanupAt').set(Date.now() + INACTIVITY_MS);
+    
 
       // lokale Pluspunkte (positive Wörter + Ich-Form) für eigenen Beitrag
       const posDelta = positiveDelta(t);
