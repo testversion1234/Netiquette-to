@@ -98,6 +98,7 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 
       // DOM Elemente
       var chat = document.getElementById('chat');
+      if (chat && getComputedStyle(chat).color === 'rgb(255, 255, 255)') { chat.style.color = '#1f2937'; }
       var msg  = document.getElementById('msg');
       var send = document.getElementById('send');
       if (!chat || !msg || !send) {
@@ -126,6 +127,9 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
           var line = document.createElement('div');
           line.className = 'card';
           line.style.margin = '8px 0';
+          line.style.color = '#1f2937'; // sichere Lesefarbe (dunkelgrau)
+          line.style.background = 'transparent';
+          line.style.fontSize = '16px';
           var who = (v.user === nick) ? 'Du' : (v.user || 'Unbekannt');
           line.textContent = who + ': ' + v.text;
           chat.appendChild(line);
