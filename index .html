@@ -82,66 +82,176 @@ button.primary:disabled{opacity:.6;cursor:not-allowed}
 </div>
 
 <script>
-/*! RoomStrider: minimal, robust, no-dependency controller */
+(function(){
+  // Helper
+  function $(id){ return document.getElementById(id); }
+
+  // --- Allowed rooms ---
+  var ROOMS = ["5a","5b","6a","6b","7a","7b","8a","8b","9a","9b","10a","10b"];
+
+  // Elements
+  var cls = $("cls");
+  var nick = $("nick");
+  var btnOpen = $("openRoom");
+
+  // If #cls doesn't exist, do nothing
+  if (!cls) return;
+
+  // Initialize #cls with first allowed value if empty / invalid
+  function normalizeRoom(value){
+    if (!value) return ROOMS[0];
+    var v = String(value).toLowerCase().trim();
+    return ROOMS.indexOf(v) >= 0 ? v : ROOMS[0];
+  }
+  cls.value = normalizeRoom(cls.value);
+
+  // --- Build minimal "slider" UI next to #cls (no HTML/CSS edits in file) ---
+  // container
+  var wrap = document.createElement("div");
+  wrap.setAttribute("aria-label","Klassenraum-Auswahl");
+  wrap.style.display = "flex";
+  wrap.style.gap = "8px";
+  wrap.style.alignItems = "center";
+  wrap.style.marginTop = "6px";
+
+  // prev button
+  var prev = document.createElement("button");
+  prev.type = "button";
+  prev.textContent = "‹";
+  prev.title = "Vorheriger Raum";
+  prev.style.padding = "6px 10px";
+
+  // label (current room)
+  var label = document.createElement("span");
+  label.textContent = cls.value.toUpperCase();
+  label.style.fontWeight = "600";
+
+  // next button
+  var next = document.createElement("button");
+  next.type = "button";
+  next.textContent = "›";
+  next.title = "Nächster Raum";
+  next.style.padding = "6px 10px";
+
+  wrap.appendChild(prev);
+  wrap.appendChild(label);
+  wrap.appendChild(next);
+
+  // insert right after the #cls input
+  if (cls.parentNode) {
+    if (cls.nextSibling) cls.parentNode.insertBefore(wrap, cls.nextSibling);
+    else cls.parentNode.appendChild(wrap);
+  } else {
+    document.body.appendChild(wrap);
+  }
+
+  // current index
+  var idx = ROOMS.indexOf(String(cls.value).toLowerCase().trim());
+  if (idx < 0) idx = 0;
+
+  function updateUI(){
+    cls.value = ROOMS[idx];
+    label.textContent = ROOMS[idx].toUpperCase();
+  }
+
+  prev.addEventListener("click", function(){
+    idx = (idx - 1 + ROOMS.length) % ROOMS.length;
+    updateUI();
+  });
+  next.addEventListener("click", function(){
+    idx = (idx + 1) % ROOMS.length;
+    updateUI();
+  });
+
+  // Allow left/right arrow keys to slide when #cls focused
+  cls.addEventListener("keydown", function(e){
+    if (e.key === "ArrowLeft"){ e.preventDefault(); prev.click(); }
+    if (e.key === "ArrowRight"){ e.preventDefault(); next.click(); }
+  });
+
+  // --- Existing open behavior ---
+  if (btnOpen) {
+    btnOpen.addEventListener("click", function(ev){
+      ev.preventDefault();
+      var room = normalizeRoom(cls.value);
+      var n = (nick && nick.value || "").trim();
+      if (!n) { alert("Bitte Nickname eingeben."); return; }
+      var url = "room_chat_with_logos.html?room=" + encodeURIComponent(room) + "&nick=" + encodeURIComponent(n);
+      window.open(url, "_blank");
+    });
+  }
+})();
+</script><script>
+/*! ModeChooser (preserve layout): show 2 buttons only after nickname is filled */
 (function(){
   function $(id){ return document.getElementById(id); }
-  var cls = $("cls"), nick = $("nick");
+  var cls = $("cls"), nick = $("nick"), openBtn = $("openRoom");
 
-  // Create action buttons (no layout changes to existing elements)
+  if (!openBtn) return; // nothing to do if there's no base button
+
+  // Build hidden panel with two buttons; clone styling from existing openBtn
   var panel = document.createElement("div");
-  panel.style.display = "flex";
+  panel.style.display = "none";     // hidden until nick is entered
   panel.style.gap = "8px";
-  panel.style.marginTop = "10px";
 
   var btnNormal = document.createElement("button");
-  btnNormal.type = "button";
-  btnNormal.textContent = "Normaler Chat starten";
-
   var btnChallenge = document.createElement("button");
-  btnChallenge.type = "button";
-  btnChallenge.textContent = "Freundlichkeits‑Challenge starten 🏅";
+  btnNormal.type = btnChallenge.type = "button";
+  btnNormal.textContent = "Normaler Chat";
+  btnChallenge.textContent = "Freundlichkeits-Challenge 🏅";
+
+  // Copy classes/styles so layout remains consistent with your theme
+  btnNormal.className = openBtn.className || "";
+  btnChallenge.className = openBtn.className || "";
+  // Try to keep inline style too (if used)
+  btnNormal.style.cssText += ";" + (openBtn.getAttribute("style")||"");
+  btnChallenge.style.cssText += ";" + (openBtn.getAttribute("style")||"");
 
   panel.appendChild(btnNormal);
   panel.appendChild(btnChallenge);
 
-  // Insert panel after #nick input (or at end of body as fallback)
-  if (nick && nick.parentNode){
-    if (nick.nextSibling) nick.parentNode.insertBefore(panel, nick.nextSibling);
-    else nick.parentNode.appendChild(panel);
+  // Insert panel right after the existing button (so layout stays same)
+  if (openBtn.parentNode){
+    if (openBtn.nextSibling) openBtn.parentNode.insertBefore(panel, openBtn.nextSibling);
+    else openBtn.parentNode.appendChild(panel);
   } else {
     document.body.appendChild(panel);
   }
 
-  var ROOMS = ["5a","5b","6a","6b","7a","7b","8a","8b","9a","9b","10a","10b"];
-  function normalizeRoom(value){
-    var v = String(value||"").toLowerCase().trim();
-    if (ROOMS.indexOf(v) >= 0) return v;
-    return ROOMS[0];
+  function normalizeRoom(v){
+    var ROOMS = ["5a","5b","6a","6b","7a","7b","8a","8b","9a","9b","10a","10b"];
+    v = String(v||"").toLowerCase().trim();
+    return ROOMS.indexOf(v) >= 0 ? v : ROOMS[0];
   }
 
   function openChat(mode){
     var room = normalizeRoom(cls && cls.value);
     var n = (nick && nick.value || "").trim();
     if (!n){ alert("Bitte Nickname eingeben."); return; }
-    var base = "room_chat_with_logos.html";
+    // Build robust relative URL
     var dir = location.pathname.replace(/[^\/]*$/, "");
-    var url = dir + base + "?room=" + encodeURIComponent(room) + "&nick=" + encodeURIComponent(n);
+    var baseNormal = "room_chat_with_logos.html";
+    var baseChallenge = "room_chat_with_logos.challenge_leaderboard.html"; // expects the challenge file provided earlier
+    var url = dir + (mode==="challenge" ? baseChallenge : baseNormal) + "?room=" + encodeURIComponent(room) + "&nick=" + encodeURIComponent(n);
     if (mode === "challenge") url += "&challenge=1";
     window.open(url, "_blank");
   }
 
+  // Wire actions
   btnNormal.addEventListener("click", function(){ openChat("normal"); });
   btnChallenge.addEventListener("click", function(){ openChat("challenge"); });
 
-  // Keep the previous slider behavior for #cls (Left/Right arrows)
-  if (cls){
-    var ROOMS_IDX = ROOMS.indexOf(String(cls.value||"").toLowerCase().trim());
-    if (ROOMS_IDX < 0) ROOMS_IDX = 0;
-    cls.value = ROOMS[ROOMS_IDX];
-    cls.addEventListener("keydown", function(e){
-      if (e.key === "ArrowLeft"){ e.preventDefault(); ROOMS_IDX = (ROOMS_IDX - 1 + ROOMS.length) % ROOMS.length; cls.value = ROOMS[ROOMS_IDX]; }
-      if (e.key === "ArrowRight"){ e.preventDefault(); ROOMS_IDX = (ROOMS_IDX + 1) % ROOMS.length; cls.value = ROOMS[ROOMS_IDX]; }
-    });
+  // Reveal panel only when nickname has content; keep original open button hidden then
+  function updateVisibility(){
+    var hasNick = !!(nick && nick.value && nick.value.trim());
+    panel.style.display = hasNick ? (panel.style.display || "flex") : "none";
+    // Hide the original single open button when choices are visible to preserve layout height
+    openBtn.style.display = hasNick ? "none" : (openBtn.style.display || "");
+  }
+  if (nick){
+    nick.addEventListener("input", updateVisibility);
+    // Initialize state on load
+    updateVisibility();
   }
 })();
 </script>
