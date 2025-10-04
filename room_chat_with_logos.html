@@ -55,12 +55,12 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 
 
 
-  <!-- Firebase SDKs (visuell neutral, keine Layout-Änderung) -->
+  <!-- Firebase SDKs (compat) – keine Layout-Änderung -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 
-  <!-- Firebase Config (deine echten Werte) -->
+  <!-- Deine Firebase-Konfiguration -->
   <script>
     window.FIREBASE_CONFIG = {
       apiKey: "AIzaSyBzr1fMkQhNFLwm4HFTjBAeFy-IyRx-Ces",
@@ -74,14 +74,14 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
     };
   </script>
 
-  
-  <!-- Chat-Logik (robust; Layout unverändert) -->
+  <!-- Chat-Logik (nur Funktionen; Layout bleibt unverändert) -->
   <script>
     (function(){
       const params = new URLSearchParams(location.search);
       const room = (params.get('room') || '5a').trim();
       const nick = (params.get('nick') || 'Gast').trim() || 'Gast';
 
+      // Labels (falls vorhanden) füllen – ohne Layout zu ändern
       var rl = document.getElementById('roomLabel');
       var nl = document.getElementById('nickLabel');
       if (rl) rl.textContent = room;
@@ -95,41 +95,34 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
       var db = firebase.database();
       var auth = firebase.auth();
 
-      // Robust: mehrere Fallbacks für die Elemente
-      var chat = document.getElementById('chat') || document.getElementById('chatLog') || document.querySelector('[data-chat], .chat-log, #messages');
-      var msg  = document.getElementById('msg')  || document.getElementById('text')    || document.querySelector('input[type="text"], textarea');
-      var send = document.getElementById('send') || document.getElementById('sendBtn') || document.querySelector('button#send, button[data-send], button.primary, button');
+      // DOM-Elemente wie in deiner Vorlage
+      var chat = document.getElementById('chat');
+      var msg  = document.getElementById('msg');
+      var send = document.getElementById('send');
       if (!chat || !msg || !send) {
-        console.error('[Chat] Erwartete Elemente (#chat/#msg/#send) nicht gefunden.');
+        console.error('[Chat] Erwartete Elemente #chat, #msg, #send fehlen.');
         return;
       }
 
       var roomRef = db.ref('rooms').child(room).child('messages');
       var currentUid = null;
-      var printed = {};
-      function keyFor(m){ return [m.user, m.text, m.ts].join('|'); }
 
+      // Anonyme Anmeldung (Authentication → Anmeldemethode → „Anonym“ muss aktiv sein)
       auth.signInAnonymously().catch(function(err){
         console.error('[Chat] signInAnonymously FAIL:', err);
-        alert('Anmeldung fehlgeschlagen. Prüfe: Authentication→„Anonym“ & Projekteinstellungen→Autorisierte Domains.');
+        alert('Anmeldung fehlgeschlagen. Prüfe: Authentication→„Anonym“ & Projekteinstellungen→Autorisierte Domains (testversion1234.github.io).');
       });
 
+      // Eingehende Nachrichten live anzeigen
       auth.onAuthStateChanged(function(user){
         if (!user) return;
         currentUid = user.uid;
-        roomRef.off();
-
-        // Vorhandene + neue Nachrichten anzeigen
+        chat.innerHTML = '';
         roomRef.limitToLast(200).on('child_added', function(snap){
           var v = snap.val(); if (!v) return;
-          var k = keyFor(v);
-          if (printed[k]) return; // Duplikate vermeiden (bei lokalem Echo)
-          printed[k] = true;
-
           var line = document.createElement('div');
           line.className = 'card';
           line.style.margin = '8px 0';
-          line.style.color = '#1f2937';
           var who = (v.user === nick) ? 'Du' : (v.user || 'Unbekannt');
           line.textContent = who + ': ' + v.text;
           chat.appendChild(line);
@@ -137,38 +130,22 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
         });
       });
 
-      function localEcho(text, ts){
-        var v = { user: nick, text: text, ts: ts };
-        var k = keyFor(v);
-        if (printed[k]) return;
-        printed[k] = true;
-        var line = document.createElement('div');
-        line.className = 'card';
-        line.style.margin = '8px 0';
-        line.style.color = '#1f2937';
-        line.textContent = 'Du: ' + text;
-        chat.appendChild(line);
-        chat.scrollTop = chat.scrollHeight;
-      }
-
+      // Senden
       function sendNow(){
         var t = (msg.value || '').trim();
         if (!t) return;
-        var ts = Date.now();
-        if (!currentUid) {
-          // Zeige trotzdem lokal an; Server kommt nach
-          localEcho(t, ts);
-        }
-        roomRef.push({ user:nick, text:t, ts:ts, uid: currentUid || 'pending' })
-          .catch(function(err){ alert('Senden fehlgeschlagen: ' + (err && err.message ? err.message : err)); });
-        msg.value = '';
+        if (!currentUid) { alert('Noch nicht angemeldet – bitte kurz warten und erneut senden.'); return; }
+        roomRef.push({ user:nick, text:t, ts:Date.now(), uid: currentUid })
+          .catch(function(err){
+            alert('Senden fehlgeschlagen: ' + (err && err.message ? err.message : err));
+          });
+        msg.value='';
         msg.focus();
       }
       send.addEventListener('click', sendNow);
       msg.addEventListener('keydown', function(e){ if (e.key === 'Enter') sendNow(); });
     })();
   </script>
-
 
 </body>
 </html>

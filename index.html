@@ -92,5 +92,22 @@ openBtn.addEventListener('click', () => {
   window.open(url, '_blank');
 });
 </script>
+
+    <script>
+      (function(){
+        var btn = document.getElementById('startBtn') || document.querySelector('button.primary, button');
+        var roomSel = document.getElementById('klasse') || document.getElementById('room') || document.querySelector('select');
+        var nickIn = document.getElementById('nick') || document.querySelector('input[type="text"]');
+        function openChat(){
+          var room = (roomSel && (roomSel.value||roomSel.textContent) || '5a').trim();
+          var nick = (nickIn && nickIn.value || 'Gast').trim();
+          if (!nick) { alert('Bitte Nickname eingeben'); return; }
+          var url = 'room_chat_with_logos.FIREBASE_LINKED.html?room=' + encodeURIComponent(room) + '&nick=' + encodeURIComponent(nick);
+          window.open(url, '_blank');
+        }
+        if (btn) btn.addEventListener('click', openChat);
+      })();
+    </script>
+    
 </body>
 </html>
