@@ -54,90 +54,100 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 </div>
 
 
-<!-- Firebase SDKs (visuell neutral) -->
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
-<script>
-// Liest URL-Parameter (room, nick) und zeigt Labels
-const params = new URLSearchParams(location.search);
-const room = (params.get('room') || '5a').trim();
-const nick = (params.get('nick') || 'Gast').trim() || 'Gast';
-document.getElementById('roomLabel').textContent = room;
-document.getElementById('nickLabel').textContent = nick;
 
-// Firebase SDKs werden separat geladen (compat).
-// Falls nicht bereits eingebunden, bitte am Ende des Dokuments *vor* diesem Script einfügen:
-// <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-// <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-// <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+  <!-- Firebase SDKs (ändern kein Layout) -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 
-// Konfiguration (aus deinem Firebase-Screenshot)
-// Du kannst diese Werte auch in einer separaten Datei setzen: window.FIREBASE_CONFIG = {...}
-window.FIREBASE_CONFIG = window.FIREBASE_CONFIG || {
-  apiKey: "AIzaSyBK9iwsc9kpAW006Jmh197T0cSQbTk-X34",
-  authDomain: "netiquette-74729.firebaseapp.com",
-  databaseURL: "https://netiquette-74729-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "netiquette-74729",
-  storageBucket: "netiquette-74729.appspot.com",
-  messagingSenderId: "178454261761",
-  appId: "1:178454261761:web:6f4bb26f0a3b39eb0a5000"
-};
+  <!-- Firebase Config (aus deinem Screenshot) -->
+  <script>
+    window.FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBK9iwsc9kpAW006Jmh197T0cSQbTk-X34",
+      authDomain: "netiquette-74729.firebaseapp.com",
+      databaseURL: "https://netiquette-74729-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "netiquette-74729",
+      storageBucket: "netiquette-74729.appspot.com",
+      messagingSenderId: "178454261761",
+      appId: "1:178454261761:web:6f4bb26f0a3b39eb0a5000"
+    };
+  </script>
 
-// Initialisierung
-if (!firebase.apps.length) {
-  firebase.initializeApp(window.FIREBASE_CONFIG);
-}
-const db = firebase.database();
-const auth = firebase.auth();
+  <!-- Chat-Logik (nur Funktionen, kein Layout-Change) -->
+  <script>
+    (function(){
+      const params = new URLSearchParams(location.search);
+      const room = (params.get('room') || '5a').trim();
+      const nick = (params.get('nick') || 'Gast').trim() || 'Gast';
 
-// DOM-Elemente
-const chat = document.getElementById('chat');
-const send = document.getElementById('send');
-const msg  = document.getElementById('msg');
+      // Labels füllen (sind im Layout vorhanden)
+      var rl = document.getElementById('roomLabel');
+      var nl = document.getElementById('nickLabel');
+      if (rl) rl.textContent = room;
+      if (nl) nl.textContent = nick;
 
-// Raum-Referenz
-const roomRef = db.ref('rooms').child(room).child('messages');
+      if (!window.firebase || !window.firebase.initializeApp) {
+        console.error('[Chat] Firebase SDK (compat) fehlt.');
+        return;
+      }
+      if (!firebase.apps.length) firebase.initializeApp(window.FIREBASE_CONFIG);
 
-// Anonyme Auth (notwendig für deine Regeln mit auth.uid)
-let currentUid = null;
-auth.signInAnonymously().catch(err => {
-  console.error('[Auth] Fehler bei der anonymen Anmeldung:', err);
-  alert('Anmeldung fehlgeschlagen – bitte Seite neu laden.');
-});
-auth.onAuthStateChanged(user => {
-  if (!user) return;
-  currentUid = user.uid;
+      var db = firebase.database();
+      var auth = firebase.auth();
 
-  // Live-Listener
-  chat.innerHTML = '';
-  roomRef.off();
-  roomRef.limitToLast(200).on('child_added', snap => {
-    const v = snap.val();
-    if (!v) return;
-    const line = document.createElement('div');
-    line.className = 'card';
-    line.style.margin = '8px 0';
-    const who = (v.user === nick) ? 'Du' : (v.user || 'Unbekannt');
-    line.textContent = `${who}: ${v.text}`;
-    chat.appendChild(line);
-    chat.scrollTop = chat.scrollHeight;
-  });
-});
+      var chat = document.getElementById('chat');
+      var msg  = document.getElementById('msg');
+      var send = document.getElementById('send');
+      if (!chat || !msg || !send) {
+        console.error('[Chat] Erwartete Elemente #chat, #msg, #send fehlen.');
+        return;
+      }
 
-// Senden
-send.addEventListener('click', () => {
-  const t = msg.value.trim();
-  if (!t || !currentUid) return;
-  const payload = { user: nick, text: t, ts: Date.now(), uid: currentUid };
-  roomRef.push(payload).catch(err => {
-    console.error('[DB] Schreiben fehlgeschlagen:', err);
-    alert('Senden fehlgeschlagen.');
-  });
-  msg.value='';
-});
-msg.addEventListener('keydown', e => (e.key==='Enter') && send.click());
+      var roomRef = db.ref('rooms').child(room).child('messages');
+      var currentUid = null;
 
-</script>
+      auth.signInAnonymously().catch(function(err){
+        console.error('[Chat] signInAnonymously FAIL:', err && err.message ? err.message : err);
+        alert('Anmeldung fehlgeschlagen. Prüfe in Firebase → Authentication, ob „Anonym“ aktiviert ist.');
+      });
+
+      auth.onAuthStateChanged(function(user){
+        if (!user) return;
+        currentUid = user.uid;
+
+        // Bestehende anzeigen & live nachführen
+        chat.innerHTML = '';
+        roomRef.limitToLast(200).on('child_added', function(snap){
+          var v = snap.val(); if (!v) return;
+          var line = document.createElement('div');
+          line.className = 'card';
+          line.style.margin = '8px 0';
+          var who = (v.user === nick) ? 'Du' : (v.user || 'Unbekannt');
+          line.textContent = who + ': ' + v.text;
+          chat.appendChild(line);
+          chat.scrollTop = chat.scrollHeight;
+        });
+      });
+
+      function sendNow(){
+        var t = (msg.value || '').trim();
+        if (!t) return;
+        if (!currentUid) {
+          alert('Noch nicht angemeldet – bitte kurz warten und erneut senden.');
+          return;
+        }
+        roomRef.push({ user:nick, text:t, ts:Date.now(), uid: currentUid })
+        .catch(function(err){
+          alert('Senden fehlgeschlagen: ' + (err && err.message ? err.message : err));
+        });
+        msg.value = '';
+        msg.focus();
+      }
+
+      send.addEventListener('click', sendNow);
+      msg.addEventListener('keydown', function(e){ if (e.key === 'Enter') sendNow(); });
+    })();
+  </script>
+
 </body>
 </html>
