@@ -78,5 +78,15 @@ send.addEventListener('click', () => {
 });
 msg.addEventListener('keydown', e => (e.key==='Enter') && send.click());
 </script>
+  <!-- Firebase SDKs (visuell neutral) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+
+<!-- Deine Config (aus Screenshot eintragen) -->
+<script src="firebase_config.js"></script>
+
+<!-- Neue Chat-Logik (nur Funktionen) -->
+<script src="chat_logic_with_auth.js"></script>
 </body>
 </html>
