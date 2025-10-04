@@ -164,13 +164,48 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
     setTimeout(function(){ if (p && p.parentNode) p.parentNode.removeChild(p); }, 3000);
   }
 
+// --- Presence & Auto-Clear Helpers ---
+  function safeKey(name){
+    // Firebase key-safe: replace disallowed chars
+    return String(name||'Anonym').toLowerCase().replace(/[.#$\[\]/]/g,'_');
+  }
+
 function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
   ready(function(){
     try { firebase.initializeApp(firebaseConfig); try { firebase.analytics(); } catch(e){} }
     catch(err){ showErr(null, "initializeApp failed: " + (err && err.message || err)); return; }
 
     const db = firebase.database();
+// Presence registration & auto-clear
+    const roomRef = db.ref('rooms/' + encodeURIComponent(room));
+    const onlineRef = roomRef.child('online');
+    const messagesRef = roomRef.child('messages');
 
+    const myKey = safeKey(nick) + '-' + Math.random().toString(36).slice(2,8);
+    const presenceRef = onlineRef.child(myKey);
+
+    // Remove my presence on disconnect; mark lastEmpty timestamp on disconnect
+    presenceRef.onDisconnect().remove();
+    roomRef.child('lastEmpty').onDisconnect().set(firebase.database.ServerValue.TIMESTAMP);
+
+    // Mark me online now
+    presenceRef.set(true);
+
+    // If online list becomes empty while we're here, clear messages immediately
+    onlineRef.on('value', function(snap){
+      if (!snap.exists()){ 
+        roomRef.child('lastEmpty').set(firebase.database.ServerValue.TIMESTAMP);
+        messagesRef.remove();
+      }
+    });
+
+    // Catch-up cleanup on (re)join: if room was empty before join, clear stale messages
+    roomRef.child('lastEmpty').once('value').then(function(tsSnap){
+      const hadEmpty = !!tsSnap.val();
+      onlineRef.once('value').then(function(os){
+        if (os.numChildren() === 1 && hadEmpty){ messagesRef.remove(); }
+      });
+    });
     // DOM
     const chat = document.getElementById('chat') || document.getElementById('chatLog');
     const send = document.getElementById('send');
