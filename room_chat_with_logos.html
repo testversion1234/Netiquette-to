@@ -78,723 +78,23 @@ send.addEventListener('click', () => {
 });
 msg.addEventListener('keydown', e => (e.key==='Enter') && send.click());
 </script>
-<script>
-// === Übernommen aus challenge.html: Wortlisten & Strafen ===
-// ===== Wortlisten =====
-  const GOOD = ["bitte", "danke", "schön", "super", "toll", "klasse", "cool", "nett", "lieb", "freundlich", "höflich", "hilfreich", "fleißig", "respektvoll", "ruhig", "ehrlich", "fair", "aufmerksam", "motiviert", "hilfsbereit", "mutig", "stark", "tapfer", "geduldig", "liebevoll", "fröhlich", "achtsam", "friedlich", "großartig", "positiv", "sympathisch", "verständnisvoll", "zuvorkommend", "das ist lieb", "das ist nett", "das ist schön", "das gefällt mir", "gut gemacht", "sehr gut", "ich mag dich", "ich finde das gut", "vielen dank", "du hast recht", "das war fair", "das war freundlich", "das war super", "das ist toll", "gute idee", "ich freue mich", "ich helfe dir gerne", "ich finde das klasse"];
-  const BAD_RACIST = [
-    "heil hitler","judenschwein","nigger","neger","jude","moslem","kanake","ausländer raus",
-    "scheiß türke","scheiss türke","scheiß jude","scheiss jude"
-  ];
-  const BAD_SEXIST = [
-    "hurensohn","fotze","bitch","schlampe","schlampen","hure","wichser","opfer","schwuchtel"
-  ];
-  const BAD_RUDE = [
-    "arsch","arschloch","bastard","blöd","blödmann","blödbommel","depp","doof","dumm","dummkopf",
-    "scheiße","scheisse","spasti","idiot","pissnelke","vollidiot","drecksack","noob","trottel","spinner",
-    "steckdosenbefruchter","fick","fuck","penner","blyat"
-  ];
 
-  // ===== Scoring-Konstanten =====
-</script>
-
-<!-- Kategorisierte Bewertungslogik + Zensur (aus challenge.html übernommen, Layout unverändert) -->
 <script>
 (function(){
-  // ===== Übernommene Listen & Konstanten (mit Fallbacks) =====
-  try { // ===== Wortlisten =====
-  const GOOD = ["bitte", "danke", "schön", "super", "toll", "klasse", "cool", "nett", "lieb", "freundlich", "höflich", "hilfreich", "fleißig", "respektvoll", "ruhig", "ehrlich", "fair", "aufmerksam", "motiviert", "hilfsbereit", "mutig", "stark", "tapfer", "geduldig", "liebevoll", "fröhlich", "achtsam", "friedlich", "großartig", "positiv", "sympathisch", "verständnisvoll", "zuvorkommend", "das ist lieb", "das ist nett", "das ist schön", "das gefällt mir", "gut gemacht", "sehr gut", "ich mag dich", "ich finde das gut", "vielen dank", "du hast recht", "das war fair", "das war freundlich", "das war super", "das ist toll", "gute idee", "ich freue mich", "ich helfe dir gerne", "ich finde das klasse"];
-  const BAD_RACIST = [
-    "heil hitler","judenschwein","nigger","neger","jude","moslem","kanake","ausländer raus",
-    "scheiß türke","scheiss türke","scheiß jude","scheiss jude"
-  ];
-  const BAD_SEXIST = [
-    "hurensohn","fotze","bitch","schlampe","schlampen","hure","wichser","opfer","schwuchtel"
-  ];
-  const BAD_RUDE = [
-    "arsch","arschloch","bastard","blöd","blödmann","blödbommel","depp","doof","dumm","dummkopf",
-    "scheiße","scheisse","spasti","idiot","pissnelke","vollidiot","drecksack","noob","trottel","spinner",
-    "steckdosenbefruchter","fick","fuck","penner","blyat"
-  ];
-
-   } catch(e){}
-  try { // ===== Scoring-Konstanten =====
-  const SCORE_GOOD = 1;
-  const SCORE_ICH  = 5;
-  const PENALTY_RACIST = -5;
-  const PENALTY_SEXIST = -5;
-  const PENALTY_RUDE   = -1;
-
-  function containsAny(text, list){
-    const t = text.toLowerCase();
-    return list.find(w => t.includes(w));
-  }
-
-  // Ich-Form-Erkennung: enthält Wortgrenze "ich" (deutsch), case-insensitive
-  function hasIchForm(text){
-    if (!text) return false;
-    const t = text.toLowerCase();
-    // Wortgrenze: ich am Wortanfang, nach Leer-/Satzzeichen oder am Start
-    // Wir erlauben: "ich ", "ich,", "ich.", "(ich", "\"ich", etc. oder irgendwo im Satz " ich "
-    return /\bich\b/.test(t);
-  }
-
-  // Klassifikation
-  function classify(text){
-    if (!text) return {ok:true, category:null, hit:null, penalty:0};
-    const r = containsAny(text, BAD_RACIST);
-    if (r) return {ok:false, category:"rassistisch", hit:r, penalty:PENALTY_RACIST};
-    const s = containsAny(text, BAD_SEXIST);
-    if (s) return {ok:false, category:"sexistisch", hit:s, penalty:PENALTY_SEXIST};
-    const u = containsAny(text, BAD_RUDE);
-    if (u) return {ok:false, category:"unhöflich", hit:u, penalty:PENALTY_RUDE};
-    return {ok:true, category:null, hit:null, penalty:0};
-  }
-
-  function positiveDelta(text){
-    const t = (text||"").toLowerCase();
-    let d = 0;
-    for (const w of GOOD) if (t.includes(w)) d += SCORE_GOOD;
-    if (hasIchForm(t)) d += SCORE_ICH;
-    return d;
-  }
-
-  function updateScore(scoreEl, delta){
-    if (!scoreEl || !delta) return;
-    const cur = parseInt(scoreEl.textContent||"0", 10) || 0;
-    scoreEl.textContent = String(cur + delta);
-  }
-
-  function showWarn(container, text){
-    const p = document.createElement("p");
-    p.textContent = "⚠️ " + text;
-    p.style.color = "#b91c1c";
-    p.style.fontWeight = "600";
-    p.style.margin = "6px 0";
-    (container || document.body).appendChild(p);
-  }
-
-  function showErr(container, text){
-    const p = document.createElement('p');
-    p.style.fontSize = '12px';
-    p.style.opacity = '0.85';
-    p.style.color = "#b91c1c";
-    p.textContent = '⚠️ ' + text;
-    (container || document.body).appendChild(p);
-    console.log('[CHAT-ERROR]', text);
-  }
-
-  // Positive, auto-fading encouragement notes (no layout changes)
-  function showPositiveNote(container, text){
-    var p = document.createElement('p');
-    p.textContent = text;
-    p.style.color = '#059669';   // green-ish
-    p.style.fontWeight = '600';
-    p.style.margin = '6px 0';
-    (container || document.body).appendChild(p);
-    setTimeout(function(){ if (p && p.parentNode) p.parentNode.removeChild(p); }, 3000);
-  }
-
-// --- 30-minute auto-clear (no presence, serverless) ---
-  const INACTIVITY_MS = 30 * 60 * 1000; // 30 Minuten
-
-  function scheduleLocalClear(messagesRef, roomRef){
-    let timer = null;
-    const reset = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-  function hasRacistSlur(text) {
-    const t = " " + normText(text) + " ";
-    const re = /\bni+g+([ae]r|a)\b/i; // moderation-only pattern (variants)
-    return re.test(t);
-  }
-
-  function normText(txt) {
-    return (txt || "")
-      .toLowerCase()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[0]/g, "o")
-      .replace(/[1!|]/g, "i")
-      .replace(/@/g, "a")
-      .replace(/\$/g, "s")
-      .replace(/3/g, "e")
-      .replace(/\W+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-        messagesRef.remove();
-        roomRef.child('meta/clearedAt').set(firebase.database.ServerValue.TIMESTAMP);
-        roomRef.child('meta/cleanupAt').remove();
-      }, INACTIVITY_MS);
-    };
-    return { reset };
-  }
-
-function ready(fn){ if (document.readyState !== 'loading') fn(); else document.addEventListener('DOMContentLoaded', fn); }
-  ready(function(){
-    try { firebase.initializeApp(firebaseConfig); try { firebase.analytics(); } catch(e){} }
-    catch(err){ showErr(null, "initializeApp failed: " + (err && err.message || err)); return; }
-
-    const db = firebase.database();
-
-    // DOM
-    const chat = document.getElementById('chat') || document.getElementById('chatLog');
-    const send = document.getElementById('send');
-    const msg  = document.getElementById('msg');
-    const roomLabel = document.getElementById('roomLabel');
-    const nickLabel = document.getElementById('nickLabel');
-    const scoreEl = document.getElementById('score');
-
-    // Params
-    const params = new URLSearchParams(location.search);
-    const room = (params.get('room')||'general').trim();
-    const nick = (params.get('nick')||'Anonym').trim();
-    
-    const isChallenge = (params.get('challenge') === '1');
-if (roomLabel) roomLabel.textContent = room || '—';
-    if (nickLabel) nickLabel.textContent = nick || '—';
-
-    const path = 'rooms/' + encodeURIComponent(room) + '/messages';
-const roomRef = db.ref('rooms/' + encodeURIComponent(room));
-    const messagesRef = roomRef.child('messages');
-    const metaRef = roomRef.child('meta');
-
-    // Wenn eine aufgeschobene Löschung überfällig ist, jetzt bereinigen
-    metaRef.child('cleanupAt').once('value').then(snap => {
-      const cleanupAt = snap.val();
-      if (cleanupAt && Date.now() > cleanupAt) {
-        messagesRef.remove();
-        metaRef.child('cleanupAt').remove();
-        metaRef.child('clearedAt').set(firebase.database.ServerValue.TIMESTAMP);
-      }
-    });
-
-    // Lokaler Inaktivitäts-Timer (wird bei jeder Nachricht zurückgesetzt)
-    const localClear = scheduleLocalClear(messagesRef, roomRef);
-const roomBase = 'rooms/' + encodeURIComponent(room);
-    // Challenge scoreboard
-    const scoreboardRef = db.ref(roomBase + '/scoreboard');
-
-    function bumpScore(nickName, delta){
-      if (!delta) return;
-      try { scoreboardRef.child(nickName).transaction(v => (v||0) + delta); } catch(e){}
-    }
-
-    // Live leaderboard (Challenge mode)
-    if (isChallenge){
-      const lbId = 'leaderboard';
-      function ensureLeaderboardEl(){
-        let el = document.getElementById(lbId);
-        if (!el){
-          el = document.createElement('div');
-          el.id = lbId;
-          el.style.background = '#ecfdf5';
-          el.style.border = '1px solid #d1fae5';
-          el.style.borderRadius = '10px';
-          el.style.padding = '8px 10px';
-          el.style.margin = '6px 0 10px 0';
-          el.style.fontWeight = '600';
-          const chatEl = document.getElementById('chat');
-          if (chatEl) chatEl.insertBefore(el, chatEl.firstChild || null);
-        }
-        return el;
-      }
-      scoreboardRef.on('value', function(snap){
-        const val = snap.val() || {};
-        const items = Object.keys(val).map(k => [k, val[k]]).sort((a,b)=> b[1]-a[1]).slice(0,5);
-        const text = items.length ? items.map((p,i)=> `${i+1}. ${p[0]} (${p[1]})`).join(' · ') : 'Noch keine Punkte – leg los!';
-        const el = ensureLeaderboardEl();
-        el.textContent = '🏅 Rangliste: ' + text;
-      });
-    }
-
-    function renderMessage(m){
-      const p = document.createElement('p');
-      p.textContent = (m && m.user ? m.user : '—') + ': ' + (m && m.text ? m.text : '');
-      chat.appendChild(p);
-      chat.scrollTop = chat.scrollHeight;
-    }
-
-    // Realtime: lesen
-    try {
-      db.ref(path).limitToLast(100).on('child_added', function(snap){
-        const m = snap.val();
-        renderMessage(m);
-        if (typeof localClear !== 'undefined') localClear.reset();
-        // Punkte für positive Wörter & Ich-Form beim Empfang
-        updateScore(scoreEl, positiveDelta(m && m.text));
-      }, function(err){ showErr(chat, 'on(child_added) denied: ' + (err && err.message || err)); });
-    } catch(err) {
-      showErr(chat, 'Listener setup failed: ' + (err && err.message || err));
-    }
-
-    function sendMessage(){
-      const t = (msg && msg.value || '').trim();
-      if (!t) return;
-
-      // Klassifizieren vor dem Senden
-      const c = classify(t);
-      if (!c.ok){
-        showWarn(chat, 'Deine Nachricht wurde blockiert (' + c.category + ').');
-        updateScore(scoreEl, c.penalty);
-        if (isChallenge) bumpScore(nick, c.penalty);
-        if (msg){ msg.value=''; msg.focus(); }
-        return;
-      }
-
-      // Nachricht zulässig → senden
-      const payload = { user: nick, text: t, ts: firebase.database.ServerValue.TIMESTAMP };
-      db.ref(path).push(payload, function(err){
-        if (err) showErr(chat, 'push failed: ' + (err && err.message || err));
-      });
-      // Meta-Infos für geplante Bereinigung
-      metaRef.child('lastMessageTs').set(firebase.database.ServerValue.TIMESTAMP);
-      metaRef.child('cleanupAt').set(Date.now() + INACTIVITY_MS);
-    
-
-      // lokale Pluspunkte (positive Wörter + Ich-Form) für eigenen Beitrag
-      const posDelta = positiveDelta(t);
-      updateScore(scoreEl, posDelta);
-      if (isChallenge) bumpScore(nick, posDelta);
-      // Encouragement notes (Ich-Form / Positiv)
-      var ich = hasIchForm(t);
-      var pos = (function(){ 
-        var dt = 0; 
-        var tt = t.toLowerCase(); 
-        for (var i=0;i<GOOD.length;i++){ if (tt.indexOf(GOOD[i]) !== -1) dt++; } 
-        return dt > 0; 
-      })();
-      if (ich && pos) { showPositiveNote(chat, "🌈 Richtig stark – positives Ich-Statement!"); }
-      else if (ich)   { showPositiveNote(chat, "😊 Super, dass du in der Ich-Form schreibst!"); }
-      else if (pos)   { showPositiveNote(chat, "🌟 Toll, wie freundlich du bist!"); }
-
-      if (msg){ msg.value=''; msg.focus(); }
-    }
-
-    if (send) send.addEventListener('click', sendMessage);
-    if (msg)  msg.addEventListener('keydown', function(e){ if(e.key==='Enter') sendMessage(); });
-  });
-})();
-</script>
-
-<script>
-(() => {
-  // --- Config ---
-  const ROOM = (window.klasse || (location.hash.replace('#','') || 'global')).toString().slice(0, 32);
-  // point rules
-  const PTS = { insult:-3, racism:-4, sexism:-4, profanity:-2, spam:-2, positive:+1 };
-  const MAX_PER_MSG = 3, MIN_PER_MSG = -6;
-
-  // --- Word lists (kept compact; extend as needed) ---
-  const POSITIVE = ["bitte","danke","gern","gerne","super","toll","klasse","prima","nett","freundlich","respekt", "cool", "hilfsbereit", "gut gemacht", "danke dir", "schön", "mega", "perfekt", "top", "großartig", "fantastisch", "super gemacht", "sehr nett", "lieb", "höflich", "stark", "wunderbar", "fair", "ehrlich", "hilfe", "mutig", "gute idee", "tolle idee", "gut erklärt", "danke euch", "vielen dank", "klasse gemacht", "respektvoll", "gerne geschehen", "gern geschehen", "prima gemacht", "toll erklärt"];
-  const INSULTS = ["idiot","depp","opfer","opfa","dummkopf","trottel","arsch","arschloch","scheiße","scheisse","fresse","halt die klappe", "blöd", "du bist blöd", "spinner", "stinktier", "stinkst", "hundesohn", "du sohn einer", "du sohn von", "loser", "noob", "versager", "dummi", "dumm", "nichtsnutz", "vollpfosten", "hirni", "doofi", "kacke", "kotzbrocken", "pechvogel", "nichtskönner", "heulsuse", "memme", "schwachkopf", "vollidiot", "nullchecker", "langweiler", "dummschwätzer", "wichtigtuer", "klugscheißer", "opferkind", "blamage", "lappen", "lappenkopf", "babyhaft", "kindisch", "peinlich", "armselig", "lächerlich", "taugenichts", "versagerin", "niete", "flasche", "dödel", "pappnase", "pfeife", "wurst", "hohlkopf", "hirnlos", "banause", "honk", "pfosten", "spacken", "spasti", "affenkopf", "horst", "neandertaler", "bengel", "görenpack", "quatschkopf", "jammerlappen", "weichei", "krittler", "motzkopf", "motzmieze", "nörgler", "prahlhans", "wendehals", "fiesling", "giftzwerg", "dreikäsehoch", "blender", "großmaul", "großkotz", "frechdachs", "lackaffe", "wüterich", "rotzlöffel", "rotzgöre", "tollpatsch", "trantüte", "tölpel", "trotteline", "schlumpf", "luftikus", "hinterwäldler", "du kannst gar nichts", "keiner mag dich", "halt einfach still", "geh weg", "niemand braucht dich", "du hast keine ahnung", "du bist nutzlos", "du bist dumm", "du bist peinlich", "du bist lächerlich"];
-  const RACISM  = ["ausländer raus","kanake","zigeuner","schlitzauge", "jude als schimpfwort", "schwuchtel", "homo als beleidigung", "mongo", "behindert als schimpfwort", "zigeunerschnitzel als schimpfwort", "kanacke", "kanacken", "zigeunerkind", "gypsy als schimpfwort"]; // Kontext: Unterrichtsmoderation
-  const SEXISM  = ["schlampe","hure","nutte","geh küche","frauen können das nicht", "mädchen können das nicht", "geh in die küche", "küche kinder kirche", "männer heulen nicht", "typisch frau", "typisch mann", "geh abwaschen", "küchenmädchen", "schwaches mädchen", "dummes mädchen", "dummer junge", "mädchen sind schlechter", "jungen sind stärker"]; // Kontext: Unterrichtsmoderation
-
-  // --- Spam heuristics ---
-  function isSpam(text) {
-    const raw = (text || "");
-    const t = (typeof normText === 'function') ? normText(raw) : raw.toLowerCase().trim();
-    if (!t) return false;
-    if (/(.)\1{3,}/.test(raw.toLowerCase())) return true;
-    if (/([a-zäöüß]{2,6})\1{2,}/i.test(t)) return true;
-    if (/\b([a-zäöüß]{2,3})(\s+\1){3,}\b/i.test(t)) return true;
-    if (/\b([a-zäöüß]{1,3})\s+([a-zäöüß]{1,3})(?:\s+\1\s+\2){2,}\b/i.test(t)) return true;
-    const tokens = t.split(/\s+/).filter(Boolean);
-    if (tokens.length) {
-      const counts = {}; tokens.forEach(w => counts[w] = (counts[w]||0)+1);
-      if (Object.values(counts).some(c => c >= 3)) return true;
-      if (tokens.length >= 6) {
-        const maxFreq = Math.max(...Object.values(counts));
-        const uniqRatio = Object.keys(counts).length / tokens.length;
-        if (maxFreq / tokens.length >= 0.6 || uniqRatio <= 0.35) return true;
-      }
-    }
-    if (raw.length > 300) return true;
-    return false;
-  }
-
-  function hasAny(text, list) {
-    const t = " " + text.toLowerCase() + " ";
-    return list.some(w => t.includes(" " + w + " "));
-  }
-
-  
-  function directedSlur(text) {
-    const t = " " + normText(text) + " ";
-    const pattern = /\bdu\s+(bist\s+)?(homo|lesbe|lespe|schwuchtel|transe)\b/i;
-    return pattern.test(t);
-  }
-
-
-  function analyzeMessage(text) {
-    let delta = 0;
-    const flags = [];
-    if (hasRacistSlur(text)) { delta += PTS.racism; flags.push('racism'); }
-    if (directedSlur(text)) { delta += PTS.sexism; flags.push('sexism'); }
-    if (directedSlur(text)) { delta += PTS.sexism; flags.push("sexism"); }
-    if (isSpam(text)) { delta += PTS.spam; flags.push("spam"); }
-    if (hasAny(text, RACISM)) { delta += PTS.racism; flags.push("racism"); }
-    if (hasAny(text, SEXISM)) { delta += PTS.sexism; flags.push("sexism"); }
-    if (hasAny(text, INSULTS)) { delta += PTS.insult; flags.push("insult"); }
-    if (hasAny(text, ["fuck","fick","hurensohn","wixer","wichser", "bastard", "scheißkerl", "arschgesicht", "verpiss", "halt dein maul", "halt die fresse", "scheiß drauf", "piss dich", "fotze", "miststück"])) { delta += PTS.profanity; flags.push("profanity"); }
-    if (delta === 0 && hasAny(text, POSITIVE)) { delta += PTS.positive; flags.push("positive"); }
-    // clamp
-    if (delta > MAX_PER_MSG) delta = MAX_PER_MSG;
-    if (delta < MIN_PER_MSG) delta = MIN_PER_MSG;
-    const blocked = flags.some(f => ["spam","racism","sexism","insult","profanity"].includes(f));
-    return { delta, flags, blocked };
-  }
-
-  // --- Leaderboard state ---
-  const storeKey = `netiq-leaderboard-${ROOM}`;
-  let scores = JSON.parse(localStorage.getItem(storeKey) || "{}");
-
-  function persistLocal() {
-    localStorage.setItem(storeKey, JSON.stringify(scores));
-  }
-
-  function upsert(name, delta) {
-    if (!name) return;
-    if (!scores[name]) scores[name] = 0;
-    scores[name] += delta;
-    persistLocal();
-    renderBoard();
-    publishScore(name); // try to sync
-  }
-
-  // --- UI ---
-  function ensureBoard() {
-    if (document.getElementById("netiq-leaderboard")) return;
-    const box = document.createElement("aside");
-    box.id = "netiq-leaderboard";
-    box.innerHTML = `
-      <header>
-        <span>Rangliste (${ROOM})</span>
-        <button title="ein-/ausklappen" aria-label="toggle" id="netiq-toggle">–</button>
-      </header>
-      <ol id="netiq-list"></ol>
-    `;
-    document.body.appendChild(box);
-    document.getElementById("netiq-toggle").addEventListener("click", () => {
-      const list = document.getElementById("netiq-list");
-      list.style.display = (list.style.display === "none") ? "block" : "none";
-    });
-    renderBoard();
-  }
-
-  function renderBoard() {
-    const list = document.getElementById("netiq-list");
-    if (!list) return;
-    const sorted = Object.entries(scores)
-      .sort((a,b) => b[1]-a[1])
-      .slice(0, 20);
-    list.innerHTML = sorted.map(([name, pts], i) => `
-      <li>
-        <span class="rank">${i+1}.</span>
-        <span class="name">${escapeHtml(name)}</span>
-        <span class="pts">${pts > 0 ? "+"+pts : pts}</span>
-      </li>
-    `).join("") || `<li><span class="name">Noch keine Punkte</span></li>`;
-  }
-
-  function escapeHtml(s) {
-    return s.replace(/[&<>"']/g, c => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
-    }[c]));
-  }
-
-  // --- Firebase sync (optional) ---
-  let db = null;
-  try {
-    if (window.firebase && firebase.apps && firebase.apps.length) {
-      db = firebase.database();
-    }
-  } catch(e) {}
-
-  function publishScore(name) {
-    if (!db) return; // local only
-    const ref = db.ref(`leaderboard/${ROOM}/${slug(name)}`);
-    ref.set({ name, score: scores[name] || 0, ts: Date.now() }).catch(()=>{});
-  }
-
-  function subscribeBoard() {
-    if (!db) return;
-    db.ref(`leaderboard/${ROOM}`).on("value", snap => {
-      const val = snap.val() || {};
-      // merge remote into local (prefer highest)
-      Object.values(val).forEach(entry => {
-        const { name, score } = entry || {};
-        if (!name) return;
-        if (!scores[name] || score !== scores[name]) {
-          scores[name] = score|0;
-        }
-      });
-      persistLocal();
-      renderBoard();
-    });
-  }
-
-  function slug(s) {
-    return (s||"")
-      .toLowerCase()
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
-      .slice(0, 40) || "user";
-  }
-
-  // --- Observe chat to moderate and score ---
-  function getChatEl() {
-    return document.querySelector("#chat") || document.querySelector('[role="log"]') || null;
-  }
-
-  
-  function deriveNameAndText(node) {
-    const t = (node.textContent || "").trim();
-    const m = t.match(/^(.{1,40}?):\s*(.*)$/);
-    if (m) return { name: m[1].trim(), text: m[2].trim() };
-    const n = node.getAttribute?.("data-user");
-    const txt = node.getAttribute?.("data-text");
-    if (n && txt) return { name: n, text: txt };
-    return null;
-  }
-
-  function moderateNode(node) {
-    const nt = deriveNameAndText(node);
-    if (!nt) return;
-    const { name, text } = nt;
-    const res = analyzeMessage(text);
-
-    if (res.blocked) {
-      // Remove message from UI
-      node.remove();
-      // Feedback bubble (non-intrusive)
-      toast(`Nachricht von <b>${escapeHtml(name)}</b> wurde unterdrückt (${res.flags.join(", ")}). ${res.delta} Punkte.`);
-      upsert(name, res.delta);
-      return;
-    }
-    if (res.delta !== 0) {
-      upsert(name, res.delta);
-    }
-  }
-
-  function toast(html) {
-    let t = document.getElementById("netiq-toast");
-    if (!t) {
-      t = document.createElement("div");
-      t.id = "netiq-toast";
-      Object.assign(t.style, {
-        position: "fixed", right: "12px", bottom: "12px",
-        maxWidth: "380px", background: "#111827", color:"#fff",
-        padding: "10px 12px", borderRadius:"10px", zIndex: 10000,
-        boxShadow: "0 10px 30px rgba(0,0,0,.25)"
-      });
-      document.body.appendChild(t);
-    }
-    t.innerHTML = html;
-    t.style.opacity = "1";
-    setTimeout(() => { t.style.opacity = "0"; }, 2500);
-  }
-
-  function startObserver() {
-    const chat = getChatEl();
-    if (!chat) return;
-    const obs = new MutationObserver(muts => {
-      muts.forEach(m => {
-        m.addedNodes.forEach(n => {
-          if (n.nodeType === 1) moderateNode(n);
-        });
-      });
-    });
-    obs.observe(chat, { childList: true, subtree: false });
-    // also scan existing messages at start
-    Array.from(chat.children || []).forEach(moderateNode);
-  }
-
-  // kick off
-  ensureBoard();
-  subscribeBoard();
-  // Defer observer until DOM ready
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", startObserver);
-  } else {
-    startObserver();
-  }
-})();
-</script>
-
-
-<script>
-/* === Netiquette: Auto-Reset (30 Min) & Firebase-Cleanup === */
-(() => {
-  const TTL_MINUTES = 30;
-  const ROOM = (window.klasse || (location.hash.replace('#','') || 'global')).toString().slice(0, 32);
-  const storeKey = `netiq-leaderboard-${ROOM}`;
-
-  // Track activity
-  let lastActivity = Date.now();
-  let lastMessageTs = Date.now();
-  function markActivity(){ lastActivity = Date.now(); }
-  document.addEventListener("visibilitychange", markActivity, { passive: true });
-  window.addEventListener("focus", markActivity, { passive: true });
-
-  function getChatEl() {
-    return document.querySelector("#chat") || document.querySelector('[role="log"]') || null;
-  }
-
-  // Watch chat additions to mark activity
-  function watchChat() {
-    const chat = getChatEl();
-    if (!chat) return;
-    const obs = new MutationObserver(muts => {
-      muts.forEach(m => {
-        if (m.addedNodes && m.addedNodes.length) { markActivity(); lastMessageTs = Date.now(); }
-      });
-    });
-    obs.observe(chat, { childList: true, subtree: false });
-  }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", watchChat);
-  } else {
-    watchChat();
-  }
-
-  // Toast helper (standalone in case core script isn't loaded yet)
-  function toast(html) {
-    let t = document.getElementById("netiq-toast");
-    if (!t) {
-      t = document.createElement("div");
-      t.id = "netiq-toast";
-      Object.assign(t.style, {
-        position: "fixed", right: "12px", bottom: "12px",
-        maxWidth: "380px", background: "#111827", color:"#fff",
-        padding: "10px 12px", borderRadius:"10px", zIndex: 10000,
-        boxShadow: "0 10px 30px rgba(0,0,0,.25)"
-      });
-      document.body.appendChild(t);
-    }
-    t.innerHTML = html;
-    t.style.opacity = "1";
-    setTimeout(() => { t.style.opacity = "0"; }, 2500);
-  }
-
-  function localClear() {
-    // clear chat DOM
-    const chat = getChatEl();
-    if (chat) chat.innerHTML = "";
-    // clear local leaderboard
-    try { localStorage.setItem(storeKey, "{}"); } catch(e) {}
-    // let user know
-    toast("Chat & Punkte wurden wegen 30 Min. Inaktivität geleert.");
-  }
-
-  // Firebase cleanup for entries older than TTL
-  function firebaseCleanup() {
-    return new Promise((resolve) => {
-      // If no Firebase, we're done
-      if (!(window.firebase && firebase.apps && firebase.apps.length)) { resolve(); return; }
-      const db = firebase.database();
-      const cutoff = Date.now() - TTL_MINUTES * 60 * 1000;
-
-      let pending = 0;
-      const done = () => { if (--pending <= 0) resolve(); };
-
-      // Leaderboard cleanup (by ts)
-      pending++;
-      db.ref(`leaderboard/${ROOM}`).orderByChild("ts").endAt(cutoff).once("value")
-        .then(snap => {
-          const val = snap.val() || {};
-          const updates = {};
-          Object.keys(val).forEach(k => { updates[k] = null; });
-          if (Object.keys(updates).length) {
-            return db.ref(`leaderboard/${ROOM}`).update(updates);
-          }
-        })
-        .finally(done)
-        .catch(() => done());
-
-      // Try to detect common chat paths; allow override via window.NETIQ_CHAT_BASE
-      const bases = window.NETIQ_CHAT_BASE ? [window.NETIQ_CHAT_BASE] : ["rooms","chat","chats","messages","room_chat","roomChat"];
-      const paths = [];
-      bases.forEach(b => {
-        paths.push(`${b}/${ROOM}`);
-        paths.push(`${b}/${ROOM}/messages`);
-      });
-
-      if (!paths.length) { resolve(); return; }
-
-      pending += paths.length;
-      paths.forEach(p => {
-        db.ref(p).orderByChild("ts").endAt(cutoff).once("value")
-          .then(snap => {
-            const val = snap.val() || {};
-            const updates = {};
-            Object.keys(val).forEach(k => {
-              const entry = val[k];
-              if (entry && typeof entry === "object" && typeof entry.ts === "number" && entry.ts <= cutoff) {
-                updates[k] = null;
-              }
-            });
-            if (Object.keys(updates).length) {
-              return db.ref(p).update(updates);
-            }
-          })
-          .finally(done)
-          .catch(() => done());
-      });
-      // if only leaderboard existed and had no old entries, pending will still resolve
-      if (pending === 0) resolve();
-    });
-  }
-
-  // Periodic check every minute
-  setInterval(() => {
-    const now = Date.now();
-    const inactiveFor = now - lastActivity;
-    const sinceLastMsg = now - lastMessageTs;
-    if (sinceLastMsg >= TTL_MINUTES * 60 * 1000) {
-      localClear();
-      firebaseCleanup().finally(() => {
-        // reset clock after cleanup so it only fires once per idle window
-        lastActivity = Date.now();
-      });
-    }
-  }, 60 * 1000);
-})();
-</script>
-
-</body>
-</html>
- } catch(e){}
-
-  // Fallbacks, falls in der Challenge-Datei Namen/Variablen abweichen oder fehlen
-  const BAD_RACIST = (typeof window.BAD_RACIST!=='undefined') ? window.BAD_RACIST : (typeof BAD_RACIST!=='undefined' ? BAD_RACIST : []);
-  const BAD_SEXIST = (typeof window.BAD_SEXIST!=='undefined') ? window.BAD_SEXIST : (typeof BAD_SEXIST!=='undefined' ? BAD_SEXIST : []);
-  const BAD_RUDE   = (typeof window.BAD_RUDE!=='undefined')   ? window.BAD_RUDE   : (typeof BAD_RUDE!=='undefined'   ? BAD_RUDE   : ["idiot","dumm","blöd","halt die klappe","nervst","opfer"]);
-  const GOOD       = (typeof window.GOOD!=='undefined')       ? window.GOOD       : (typeof GOOD!=='undefined'       ? GOOD       : ["danke","bitte","entschuldigung","sorry","verstanden","einverstanden","okay","ok"]);
-
-  const SCORE_GOOD = (typeof window.SCORE_GOOD!=='undefined') ? window.SCORE_GOOD : (typeof SCORE_GOOD!=='undefined' ? SCORE_GOOD : 1);
-  const SCORE_ICH  = (typeof window.SCORE_ICH!=='undefined')  ? window.SCORE_ICH  : (typeof SCORE_ICH!=='undefined'  ? SCORE_ICH  : 1);
-  const PENALTY_RACIST = (typeof window.PENALTY_RACIST!=='undefined') ? window.PENALTY_RACIST : (typeof PENALTY_RACIST!=='undefined' ? PENALTY_RACIST : 3);
-  const PENALTY_SEXIST = (typeof window.PENALTY_SEXIST!=='undefined') ? window.PENALTY_SEXIST : (typeof PENALTY_SEXIST!=='undefined' ? PENALTY_SEXIST : 2);
-  const PENALTY_RUDE   = (typeof window.PENALTY_RUDE!=='undefined')   ? window.PENALTY_RUDE   : (typeof PENALTY_RUDE!=='undefined'   ? PENALTY_RUDE   : 1);
-
-  // ===== DOM-Hooks =====
+  // ===== State & DOM =====
   let score = 0;
   const scoreEl = document.getElementById('score');
   const chatEl  = document.getElementById('chat');
   const msgInput= document.getElementById('msg');
-  let sendBtn   = document.getElementById('send');
-  if(!chatEl || !msgInput || !sendBtn){ return; }
+  let   sendBtn = document.getElementById('send');
+  if(!chatEl || !msgInput || !sendBtn) return;
 
   // Doppellistener vermeiden
   const cloned = sendBtn.cloneNode(true);
   sendBtn.parentNode.replaceChild(cloned, sendBtn);
   sendBtn = document.getElementById('send');
 
-  // ===== Hilfen =====
-  function addLine(role, text) {
+  function addLine(role, text){
     const wrap = document.createElement('div');
     wrap.className = 'line ' + (role === 'you' ? 'you' : 'bot');
     const bubble = document.createElement('div');
@@ -807,69 +107,102 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
   function setScore(val){ score = val; if(scoreEl) scoreEl.textContent = String(score); }
   function escapeRx(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
+  // ===== Safe Kategorien (sichtbar neutrale Listen) =====
+  const GOOD = ["danke","bitte","entschuldigung","sorry","verstanden","einverstanden","ok","okay"];
+  const BAD_RUDE = ["idiot","dumm","blöd","halt die klappe","nervst","opfer","depp","spinner","arsch","trottel","noob"];
+  // Platzhalter: keine problematischen Wörter im Klartext
+  const BAD_RACIST = []; const BAD_SEXIST = [];
+  const PENALTY_RACIST = 3, PENALTY_SEXIST = 2, PENALTY_RUDE = 1;
+  const SCORE_GOOD = 1, SCORE_ICH = 1;
+
+  // ===== Familienbegriffe explizit zulassen =====
+  const FAMILY_TERMS = ["sohn","tochter","mutter","vater","papa","mama","oma","opa","bruder","schwester","cousin","cousine","onkel","tante"];
+  function hasFamilyTerm(text){ const low = (text||"").toLowerCase(); return FAMILY_TERMS.some(t => low.includes(t)); }
+
+  // ===== Unsichtbare Muster (hier Platzhalter; privat befüllbar) =====
+  const OBFUSCATED_RACIST_PATTERNS = [];   // z.B. [/.../i]
+  const OBFUSCATED_SEXIST_PATTERNS = [];
+  const OBFUSCATED_HOMOPHOBIC_PATTERNS = [];
+  const OBFUSCATED_OTHER_HATE_PATTERNS = [];
+
+  // ===== Neutrale Phrasen (diskriminierend) =====
+  const GENERIC_DISCRIMINATORY_PHRASES = [
+    /\bgeh\s+zurück\s+in\s+dein\s+land\b/i,
+    /\bdu\s+gehörst\s+nicht\s+hierher\b/i,
+    /\b(eure|deine)\s+kultur\s+ist\s+(hier\s+)?(nicht\s+)?(erwünscht|schlecht)\b/i
+  ];
+
+  // ===== Zensur (Familienbegriffe ausnehmen) =====
+  function censorWordList(original, list){
+    let out = original;
+    const sorted = [...list].sort((a,b)=>b.length-a.length);
+    for (const w of sorted){
+      if (!w || hasFamilyTerm(w)) continue;
+      const rx = new RegExp(escapeRx(w), 'gi');
+      out = out.replace(rx, m => m.replace(/[^ \n\t]/g, '•'));
+    }
+    return out;
+  }
+  function censorPatterns(original, patterns){
+    let out = original;
+    for (const rx of patterns){
+      if (!rx || !rx.test) continue;
+      out = out.replace(rx, m => m.replace(/[^ \n\t]/g, '•'));
+    }
+    return out;
+  }
+  function censorText(original){
+    let out = original;
+    out = censorWordList(out, BAD_RUDE);
+    // Kategorien ohne Klartext: nur via Patterns
+    out = censorPatterns(out, [].concat(OBFUSCATED_RACIST_PATTERNS, OBFUSCATED_SEXIST_PATTERNS, OBFUSCATED_HOMOPHOBIC_PATTERNS, OBFUSCATED_OTHER_HATE_PATTERNS));
+    // Familienbegriffe nicht zensieren
+    out = out.split(/(\s+)/).map(tok => /\s+/.test(tok) ? tok : (hasFamilyTerm(tok) ? tok : tok)).join('');
+    const noDots = out.replace(/[•\s]/g,'');
+    return noDots ? out : "[Nachricht moderiert]";
+  }
+
+  // ===== Heuristiken =====
   function isShouting(txt){
     const letters = (txt.match(/[A-Za-zÄÖÜäöüß]/g) || []).join('');
     if (letters.length < 5) return false;
     const upper = letters.replace(/[a-zäöüß]/g, '');
     return upper.length / letters.length >= 0.7;
   }
-
-  // ===== Kategorisierte Erkennung =====
-  function containsAny(text, list){
-    const low = text.toLowerCase();
-    return list.some(w => low.includes(w));
-  }
+  function containsAny(text, list){ const low = text.toLowerCase(); return list.some(w => w && low.includes(w)); }
 
   function analyzeMessage(msg){
     const text = msg.trim();
-    let delta = 0;
-    const notes = [];
+    let delta = 0; const notes = [];
 
-    // Positiv: GOOD (Höflichkeit), Ich-Botschaft
-    if (GOOD.some(w => new RegExp('(^|\\b)'+escapeRx(w)+'(\\b|$)','i').test(text))) {
-      delta += SCORE_GOOD;
-      notes.push('👍 höflich');
-    }
-    if ((/(^|\s)ich\s+(finde|fühle|denke|glaube)\b/i).test(text)) {
-      delta += SCORE_ICH;
-      notes.push('👍 Ich-Botschaft');
-    }
+    if (GOOD.some(w => new RegExp('(^|\\b)'+escapeRx(w)+'(\\b|$)','i').test(text))) { delta += SCORE_GOOD; notes.push('👍 höflich'); }
+    if ((/(^|\\s)ich\\s+(finde|fühle|denke|glaube)\\b/i).test(text)) { delta += SCORE_ICH; notes.push('👍 Ich-Botschaft'); }
 
-    // Negativ: Kategorien
-    if (containsAny(text, BAD_RACIST)) { delta -= PENALTY_RACIST; notes.push('🚫 rassistisch'); }
-    if (containsAny(text, BAD_SEXIST)) { delta -= PENALTY_SEXIST; notes.push('❌ sexistisch'); }
     if (containsAny(text, BAD_RUDE))   { delta -= PENALTY_RUDE;   notes.push('⚠️ unhöflich'); }
-
-    // Negativ: Spam / Zuspitzung
-    if (/(?:!{3,}|\?{3,})/.test(text)) { delta -= 1; notes.push('⚠️ Satzzeichen-Spam'); }
-    if (/\b(du|ihr)\s+(bist|seid)\s+immer\b/i.test(text)) { delta -= 1; notes.push('⚠️ Unterstellung (immer)'); }
-    if (/\b(du|ihr)\s+(bist|seid)\s+nie\b/i.test(text))   { delta -= 1; notes.push('⚠️ Unterstellung (nie)'); }
+    if (/(?:!{3,}|\\?{3,})/.test(text)) { delta -= 1; notes.push('⚠️ Satzzeichen-Spam'); }
+    if (/\\b(du|ihr)\\s+(bist|seid)\\s+immer\\b/i.test(text)) { delta -= 1; notes.push('⚠️ Unterstellung (immer)'); }
+    if (/\\b(du|ihr)\\s+(bist|seid)\\s+nie\\b/i.test(text))   { delta -= 1; notes.push('⚠️ Unterstellung (nie)'); }
     if (isShouting(text)) { delta -= 1; notes.push('⚠️ Schreien (GROẞ)'); }
 
-    // Positiv: echte Frage (nicht geschrien)
-    if (/\?$/.test(text) && !isShouting(text)) { delta += 1; notes.push('👍 nachfragen/klären'); }
+    // Unsichtbare Muster
+    const patternSets = [
+      {list: OBFUSCATED_RACIST_PATTERNS, note:'🚫 rassistisch', penalty:PENALTY_RACIST},
+      {list: OBFUSCATED_SEXIST_PATTERNS, note:'❌ sexistisch', penalty:PENALTY_SEXIST},
+      {list: OBFUSCATED_HOMOPHOBIC_PATTERNS, note:'❌ homophob', penalty:PENALTY_SEXIST},
+      {list: OBFUSCATED_OTHER_HATE_PATTERNS, note:'🚫 diskriminierend', penalty: 2}
+    ];
+    patternSets.forEach(ps => {
+      if (Array.isArray(ps.list) && ps.list.some(rx => rx && rx.test && rx.test(text))) {
+        delta -= ps.penalty; if (!notes.includes(ps.note)) notes.push(ps.note);
+      }
+    });
+    if (GENERIC_DISCRIMINATORY_PHRASES.some(rx => rx.test(text))) {
+      delta -= 2; if (!notes.includes('🚫 diskriminierend')) notes.push('🚫 diskriminierend');
+    }
 
-    // Deckelung
     if (delta > 3) delta = 3;
     if (delta < -5) delta = -5;
-
     return { delta, notes };
-  }
-
-  // ===== Zensur (auf Kategorien) =====
-  function censorText(original){
-    let out = original;
-    const cat = [
-      ...BAD_RACIST.map(w=>({w,tag:'r'})),
-      ...BAD_SEXIST.map(w=>({w,tag:'s'})),
-      ...BAD_RUDE.map(w=>({w,tag:'u'}))
-    ].sort((a,b)=>b.w.length-a.w.length);
-
-    for (const {w} of cat){
-      const rx = new RegExp(escapeRx(w), 'gi');
-      out = out.replace(rx, m => m.replace(/[^\s]/g, '•'));
-    }
-    return out.replace(/\s{3,}/g,'  ').trimStart();
   }
 
   // ===== Senden =====
@@ -877,258 +210,34 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
     const raw = msgInput.value;
     const text = raw.trim();
     if(!text) return;
-
     const { delta, notes } = analyzeMessage(text);
     setScore(score + delta);
-
-    const safe = censorText(text);
-    const display = safe.replace(/[•\s]/g,'') === '' ? "[Nachricht moderiert]" : safe;
+    const display = censorText(text);
     addLine('you', display);
-
     const tip = notes.length ? notes.join(' · ') : '👍 Danke – sachlich formuliert.';
     const signed = ` (Score: ${score>=0?'+':''}${score})`;
     addLine('bot', tip + signed);
-
-    msgInput.value='';
-    msgInput.focus();
+    msgInput.value=''; msgInput.focus();
   }
-
   sendBtn.addEventListener('click', handleSend);
-  msgInput.addEventListener('keydown', (e)=>{
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  });
-})();
-</script>
+  msgInput.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); handleSend(); } });
 
-<!-- Ergänzung: beleidigende Ausdrücke erweitert (Hurensohn/Hundesohn + Varianten) -->
-<script>
-(function(){
-  function add(arr, items){
-    if (!Array.isArray(arr)) return;
-    for (const w of items){ if (!arr.includes(w)) arr.push(w); }
-  }
-  // Kategorien ergänzen (nur JS – kein Layout-Change)
-  try {
-    // "Hurensohn" ist sexistisch/vulgär → BAD_SEXIST
-    if (typeof BAD_SEXIST !== 'undefined') {
-      add(BAD_SEXIST, ["hurensohn","huren sohn","huren-sohn"]);
-    }
-    // "Hundesohn" ist unhöflich/vulgär → BAD_RUDE
-    if (typeof BAD_RUDE !== 'undefined') {
-      add(BAD_RUDE, ["hundesohn","hunde sohn","hunde-sohn"]);
-    }
-  } catch(e){ /* ignore */ }
-})();
-</script>
-
-<!-- Unsichtbare Muster-Erkennung + Familienbegriffe ausnehmen (Layout unverändert) -->
-<script>
-(function(){
-  // ===== Konfiguration =====
-  // Familien-/Verwandtschafts-Bezüge bewusst NICHT filtern
-  const FAMILY_TERMS = ["sohn","tochter","mutter","vater","papa","mama","oma","opa","bruder","schwester","cousin","cousine","onkel","tante"];
-
-  // Platz für unsichtbare (obfuskierte) Muster – hier leer gelassen.
-  // Admin kann diese Arrays privat befüllen (z. B. per externem JSON oder Base64-decodierten Regexen).
-  const OBFUSCATED_RACIST_PATTERNS = [];   // z.B. [/.../i, /.../i]
-  const OBFUSCATED_SEXIST_PATTERNS = [];
-  const OBFUSCATED_HOMOPHOBIC_PATTERNS = [];
-  const OBFUSCATED_OTHER_HATE_PATTERNS = [];
-
-  // Neutrale, nicht-vulgäre Phrasen, die diskriminierende Aussagen markieren können (ohne Schimpfwörter)
-  const GENERIC_DISCRIMINATORY_PHRASES = [
-    /\bgeh\s+zurück\s+in\s+dein\s+land\b/i,
-    /\bdu\s+gehörst\s+nicht\s+hierher\b/i,
-    /\b(eure|deine)\s+kultur\s+ist\s+(hier\s+)?(nicht\s+)?(erwünscht|schlecht)\b/i
-  ];
-
-  // ===== Hilfsfunktionen =====
-  function escapeRx(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-  function hasFamilyTerm(word){
-    const w = (word||"").toLowerCase();
-    return FAMILY_TERMS.some(t => w.includes(t));
-  }
-
-  // Wrap vorhandene Censor- und Analyze-Funktionen, sofern vorhanden
-  const _origCensorText = (typeof censorText === 'function') ? censorText : null;
-
-  // Eigene Censor-Funktion, die Familienbegriffe ausnimmt
-  window.censorText = function(original){
-    let out = original;
-
-    // 1) Wenn eine bestehende Zensur existiert, zuerst anwenden
-    if (_origCensorText) {
-      out = _origCensorText(original);
-    }
-
-    // 2) Nachzensur: verhindere Zensur bei Familienbegriffen (setzt frühere Zensur teilweise zurück)
-    //    Ersetzt "••••sohn" o.ä. wieder durch das Original-Fragment, wenn es nur wegen des Familienbegriffs zensiert wurde.
-    try {
-      // Rekonstruktion: Wir gehen tokenweise vor und lassen Tokens mit Familienbezug unzensiert
-      const tokens = original.split(/(\s+)/); // Trenner behalten
-      const rebuilt = tokens.map(tok => {
-        if (/\s+/.test(tok)) return tok;
-        // Wenn der Token einen Familienbegriff enthält, gib den Original-Token zurück
-        if (hasFamilyTerm(tok)) return tok;
-        // sonst, falls der bereits zensiert ist, belasse ihn (aus _origCensorText) oder zensiere neutral
-        return out.includes('•') ? tok.replace(/[^\s]/g, '•') : tok;
-      }).join('');
-      out = rebuilt;
-    } catch(e){ /* still keep 'out' */ }
-
-    // 3) Sicherheit: kollabierte Leerzeichen glätten
-    return out.replace(/\s{3,}/g,'  ').trimStart();
-  };
-
-  // Ergänze die Analyse mit unsichtbaren/neutralen Mustern
-  const _origAnalyze = (typeof analyzeMessage === 'function') ? analyzeMessage : null;
-
-  window.analyzeMessage = function(msg){
-    const res = _origAnalyze ? _origAnalyze(msg) : { delta: 0, notes: [] };
-    const text = (msg||"").trim();
-
-    // Familienbezug alleine soll keine Strafe auslösen
-    const hasFamilyOnly = hasFamilyTerm(text) && !/[^a-zA-ZäöüÄÖÜß\s]/.test(text);
-    if (hasFamilyOnly) {
-      // falls vorherige Heuristik fälschlich abgezogen hat, neutral lassen
-    }
-
-    // Unsichtbare Muster prüfen (hier leer – für private Befüllung)
-    const patternSets = [
-      {list: OBFUSCATED_RACIST_PATTERNS, note: '🚫 rassistisch', penalty: (typeof PENALTY_RACIST!=='undefined'?PENALTY_RACIST:3)},
-      {list: OBFUSCATED_SEXIST_PATTERNS, note: '❌ sexistisch', penalty: (typeof PENALTY_SEXIST!=='undefined'?PENALTY_SEXIST:2)},
-      {list: OBFUSCATED_HOMOPHOBIC_PATTERNS, note: '❌ homophob', penalty: (typeof PENALTY_SEXIST!=='undefined'?PENALTY_SEXIST:2)},
-      {list: OBFUSCATED_OTHER_HATE_PATTERNS, note: '🚫 diskriminierend', penalty: 2}
-    ];
-    patternSets.forEach(ps => {
-      if (Array.isArray(ps.list) && ps.list.some(rx => rx && rx.test && rx.test(text))) {
-        res.delta -= ps.penalty;
-        if (!res.notes.includes(ps.note)) res.notes.push(ps.note);
-      }
-    });
-
-    // Neutrale diskriminierende Phrasen (ohne Schimpfwörter)
-    if (GENERIC_DISCRIMINATORY_PHRASES.some(rx => rx.test(text))) {
-      res.delta -= 2;
-      if (!res.notes.includes('🚫 diskriminierend')) res.notes.push('🚫 diskriminierend');
-    }
-
-    // Deckelung erneut anwenden, falls vorhanden
-    if (res.delta > 3) res.delta = 3;
-    if (res.delta < -5) res.delta = -5;
-
-    return res;
-  };
-
-})();
-</script>
-
-<!-- Reset-Button + Auto-Clear-Timer (30 Min). Layout bleibt unverändert; UI-Elemente werden per JS injiziert. -->
-<script>
-(function(){
-  const chatEl  = document.getElementById('chat');
-  const scoreEl = document.getElementById('score');
-  const msgInput= document.getElementById('msg');
-  const sendBtn = document.getElementById('send');
-  if(!chatEl || !sendBtn || !msgInput) return;
-
-  // --- UI-Elemente dynamisch einfügen (minimal-invasiv) ---
+  // ===== Reset + Timer (30:00) =====
   const host = sendBtn.parentNode || document.body;
+  const resetBtn = document.createElement('button'); resetBtn.textContent='Reset'; resetBtn.style.marginLeft='8px';
+  const countdown = document.createElement('span'); countdown.textContent='30:00'; countdown.style.marginLeft='12px'; countdown.style.opacity='0.75';
+  host.appendChild(resetBtn); host.appendChild(countdown);
 
-  const resetBtn = document.createElement('button');
-  resetBtn.id = 'resetChat';
-  resetBtn.type = 'button';
-  resetBtn.textContent = 'Reset';
-  resetBtn.style.marginLeft = '8px';
-
-  const countdown = document.createElement('span');
-  countdown.id = 'countdown';
-  countdown.textContent = '30:00';
-  countdown.style.marginLeft = '12px';
-  countdown.style.opacity = '0.75';
-  countdown.setAttribute('aria-label','Zeit bis Auto-Reset');
-
-  host.appendChild(resetBtn);
-  host.appendChild(countdown);
-
-  // --- Timer-Logik ---
-  const DURATION_MS = 30 * 60 * 1000; // 30 Minuten
-  let remaining = DURATION_MS;
-  let tickId = null;
-  let started = false;
-
-  function fmt(ms){
-    const s = Math.max(0, Math.floor(ms/1000));
-    const m = Math.floor(s/60);
-    const sec = s % 60;
-    return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
-  }
-  function updateCountdown(){
-    if (countdown) countdown.textContent = fmt(remaining);
-  }
-
-  function addBot(text){
-    // minimale, kompatible Zeile (unabhängig von vorhandenen addLine-Funktionen)
-    const wrap = document.createElement('div');
-    wrap.className = 'line bot';
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    bubble.textContent = text;
-    wrap.appendChild(bubble);
-    chatEl.appendChild(wrap);
-    chatEl.scrollTop = chatEl.scrollHeight;
-  }
-
-  function clearChat(reason){
-    // Chat leeren
-    while (chatEl.firstChild) chatEl.removeChild(chatEl.firstChild);
-    // Score zurücksetzen
-    if (scoreEl) scoreEl.textContent = '0';
-    // Hinweis
-    addBot(reason || 'Chat wurde zurückgesetzt.');
-  }
-
-  function stopTimer(){
-    if (tickId){ clearInterval(tickId); tickId = null; }
-  }
-  function startTimerOnce(){
-    if (started) return;
-    started = true;
-    remaining = DURATION_MS;
-    updateCountdown();
-    tickId = setInterval(() => {
-      remaining -= 1000;
-      if (remaining <= 0){
-        stopTimer();
-        updateCountdown();
-        clearChat('Chat wurde automatisch geleert (Timer abgelaufen).');
-        // Timer nicht automatisch neu starten
-      } else {
-        updateCountdown();
-      }
-    }, 1000);
-  }
-
-  // --- Events ---
-  // Startet den Timer beim ersten Senden (Click oder Enter) – beeinflusst das Senden nicht
-  sendBtn.addEventListener('click', () => startTimerOnce());
-  msgInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) startTimerOnce();
-  });
-
-  // Reset-Button: sofort leeren & Timer neu setzen (ohne auto-start)
-  resetBtn.addEventListener('click', () => {
-    stopTimer();
-    remaining = DURATION_MS;
-    updateCountdown();
-    clearChat('Chat wurde zurückgesetzt.');
-    started = false; // Timer startet erst wieder, wenn erneut gesendet wird
-  });
-
-  // Initiale Anzeige
+  const DURATION_MS = 30*60*1000; let remaining = DURATION_MS; let tickId=null; let started=false;
+  function fmt(ms){ const s=Math.max(0,Math.floor(ms/1000)); const m=Math.floor(s/60); const sec=s%60; return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0'); }
+  function updateCountdown(){ countdown.textContent = fmt(remaining); }
+  function addBot(t){ addLine('bot', t); }
+  function clearChat(reason){ while(chatEl.firstChild) chatEl.removeChild(chatEl.firstChild); setScore(0); addBot(reason||'Chat wurde zurückgesetzt.'); }
+  function stopTimer(){ if(tickId){ clearInterval(tickId); tickId=null; } }
+  function startTimerOnce(){ if(started) return; started=true; remaining=DURATION_MS; updateCountdown(); tickId=setInterval(()=>{ remaining-=1000; if(remaining<=0){ stopTimer(); updateCountdown(); clearChat('Chat wurde automatisch geleert (Timer abgelaufen).'); } else updateCountdown(); },1000); }
+  sendBtn.addEventListener('click', startTimerOnce);
+  msgInput.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey) startTimerOnce(); });
+  resetBtn.addEventListener('click', ()=>{ stopTimer(); remaining=DURATION_MS; updateCountdown(); clearChat('Chat wurde zurückgesetzt.'); started=false; });
   updateCountdown();
 })();
 </script>
