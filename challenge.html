@@ -844,5 +844,50 @@ function sendMessage(){
   };
 })();
 </script>
+
+<!-- Add obfuscated insult patterns (sexist/rude) + hook into existing logic -->
+<script>
+(function(){
+  // Build regex from char codes without showing the word
+  function rxWord(charCodes){
+    const letters = charCodes.map(c => String.fromCharCode(c));
+    // allow separators between letters (spaces, dashes, punctuation), allow repeated vowels
+    const parts = letters.map((ch, idx) => {
+      if (/[aeiouäöü]/i.test(ch)) {
+        return ch + "+[\\W_]*";
+      }
+      return ch + "[\\W_]*";
+    });
+    const core = parts.join("");
+    return new RegExp("\\\\b" + core + "\\\\b", "i");
+  }
+  function rxInsultContext(coreRx){
+    // add common insult contexts: "du ...", "bist (eine|ein) ...", "so eine ..."
+    return new RegExp("(?:\\bdu\\b[^\\n\\r]{0,12}|\\bbist\\b[^\\n\\r]{0,12}|\\beine?\\b[^\\n\\r]{0,8}|\\bso\\s+eine?\\b[^\\n\\r]{0,8})" + coreRx.source, "i");
+  }
+
+  // Try to locate pattern arrays from the main script; else create locals and wire them
+  var OBFUSCATED_SEXIST_PATTERNS = window.OBFUSCATED_SEXIST_PATTERNS || [];
+  var OBFUSCATED_RUDE_PATTERNS   = window.OBFUSCATED_RUDE_PATTERNS   || [];
+  // expose back if not present
+  if (!window.OBFUSCATED_SEXIST_PATTERNS) window.OBFUSCATED_SEXIST_PATTERNS = OBFUSCATED_SEXIST_PATTERNS;
+  if (!window.OBFUSCATED_RUDE_PATTERNS)   window.OBFUSCATED_RUDE_PATTERNS   = OBFUSCATED_RUDE_PATTERNS;
+
+  // === Add patterns for the term you tested (sexist category) ===
+  // "Hure" -> [104,117,114,101]
+  (function(){
+    var base = rxWord([104,117,114,101]);
+    OBFUSCATED_SEXIST_PATTERNS.push(base, rxInsultContext(base));
+  })();
+
+  // You can add more terms similarly without exposing words:
+  // Example placeholders (commented): 
+  // var w = rxWord([ /* char codes here */ ]); OBFUSCATED_RUDE_PATTERNS.push(w, rxInsultContext(w));
+
+  // Ensure the global censor/analyze pick up our arrays:
+  // If analyzeMessage/censorText were defined earlier, they already read these arrays.
+  // Nothing else to do; patterns are active now.
+})();
+</script>
 </body>
 </html>
