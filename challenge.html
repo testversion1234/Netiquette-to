@@ -54,9 +54,9 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 </div>
 
 <!-- Firebase compat SDKs (no module) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js">
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics-compat.js">
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <script>
 function analyzeMessage(msg){
@@ -230,14 +230,14 @@ function ready(fn){ if (document.readyState !== 'loading') fn(); else document.a
     const msg  = document.getElementById('msg');
     const roomLabel = document.getElementById('roomLabel');
     const nickLabel = document.getElementById('nickLabel');
-    const scoreEl = document.getElementById('score');
+    const scoreEl = document.getElementById('score'); if(scoreEl && !scoreEl.textContent) scoreEl.textContent='0';
 
     // Params
     const params = new URLSearchParams(location.search);
     const room = (params.get('room')||'general').trim();
     const nick = (params.get('nick')||'Anonym').trim();
     
-    const isChallenge = (params.get('challenge') === '1');
+    const isChallenge = true; // Challenge-Datei: Modus dauerhaft aktiv
 if (roomLabel) roomLabel.textContent = room || '—';
     if (nickLabel) nickLabel.textContent = nick || '—';
 
@@ -350,108 +350,6 @@ function sendMessage(){
     if (send) send.addEventListener('click', sendMessage);
     if (msg)  msg.addEventListener('keydown', function(e){ if(e.key==='Enter') sendMessage(); });
   });
-})();
-
-
-<script>
-(function(){
-  // ===== Wortlisten (aus früherer funktionierender Version übernommen) =====
-  const GOOD = ["bitte", "danke", "schön", "super", "toll", "klasse", "cool", "nett", "lieb", "freundlich", "höflich", "hilfreich", "fleißig", "respektvoll", "ruhig", "ehrlich", "fair", "aufmerksam", "motiviert", "hilfsbereit", "mutig", "stark", "tapfer", "geduldig", "liebevoll", "fröhlich", "achtsam", "friedlich", "großartig", "positiv", "sympathisch", "verständnisvoll", "zuvorkommend", "das ist lieb", "das ist nett", "das ist schön", "das gefällt mir", "gut gemacht", "sehr gut", "ich mag dich", "ich finde das gut", "vielen dank", "du hast recht", "das war fair", "das war freundlich", "das war super", "das ist toll", "gute idee", "ich freue mich", "ich helfe dir gerne", "ich finde das klasse"];
-  const BAD_RACIST = [
-    "heil hitler","judenschwein","nigger","neger","jude","moslem","kanake","ausländer raus",
-    "scheiß türke","scheiss türke","scheiß jude","scheiss jude"
-  ];
-  const BAD_SEXIST = [
-    "hurensohn","fotze","bitch","schlampe","schlampen","hure","wichser","opfer","schwuchtel"
-  ];
-  const BAD_RUDE = [
-    "arsch","arschloch","bastard","blöd","blödmann","blödbommel","depp","doof","dumm","dummkopf",
-    "scheiße","scheisse","spasti","idiot","pissnelke","vollidiot","drecksack","noob","trottel","spinner",
-    "steckdosenbefruchter","fick","fuck","penner","blyat"
-  ];
-
-  // ===== Scoring-Konstanten =====
-  const SCORE_GOOD = 1;
-  const SCORE_ICH  = 1;
-  const PENALTY_RACIST = 3;
-  const PENALTY_SEXIST = 3;
-  const PENALTY_RUDE   = 2;
-
-  // ===== DOM & State =====
-  let score = 0;
-  const scoreEl = document.getElementById('score');
-  const chatEl  = document.getElementById('chat');
-  const msgInput= document.getElementById('msg');
-  let   sendBtn = document.getElementById('send');
-  if(!chatEl || !msgInput || !sendBtn) return;
-
-  // Doppellistener vermeiden
-  const cloned = sendBtn.cloneNode(true);
-  sendBtn.parentNode.replaceChild(cloned, sendBtn);
-  sendBtn = document.getElementById('send');
-
-  // ===== Familienbegriffe ausnehmen =====
-  const FAMILY_TERMS = ["sohn","tochter","mutter","vater","papa","mama","oma","opa","bruder","schwester","cousin","cousine","onkel","tante"];
-  function hasFamilyTerm(text){ const low=(text||"").toLowerCase(); return FAMILY_TERMS.some(t=>low.includes(t)); }
-
-  // ===== Helpers =====
-  function addLine(role, text){ const w=document.createElement('div'); w.className='line '+(role==='you'?'you':'bot'); const b=document.createElement('div'); b.className='bubble'; b.textContent=text; w.appendChild(b); chatEl.appendChild(w); chatEl.scrollTop=chatEl.scrollHeight; }
-  function setScore(v){ score=v; if(scoreEl) scoreEl.textContent=String(score); }
-  function escapeRx(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-  function containsAny(text, list){ const low=text.toLowerCase(); return list.some(w => w && low.includes(w)); }
-  function isShouting(txt){ const letters=(txt.match(/[A-Za-zÄÖÜäöüß]/g)||[]).join(''); if(letters.length<5) return false; const upper=letters.replace(/[a-zäöüß]/g,''); return upper.length/letters.length>=0.7; }
-
-  // ===== Zensur =====
-  function censorWordList(original, list){ let out=original; const sorted=[...list].sort((a,b)=>b.length-a.length); for(const w of sorted){ if(!w||hasFamilyTerm(w)) continue; const rx=new RegExp(escapeRx(w),'gi'); out=out.replace(rx, m=>m.replace(/[^ \n\t]/g,'•')); } return out; }
-  function censorText(original){ let out=original; out=censorWordList(out, BAD_RUDE); out=censorWordList(out, BAD_RACIST); out=censorWordList(out, BAD_SEXIST); const noDots=out.replace(/[•\s]/g,''); return noDots?out:'[Nachricht moderiert]'; }
-
-  // ===== Analyse =====
-  function analyzeMessage(msg){ const text=msg.trim(); let delta=0; const notes=[];
-    // Positiv
-    if (GOOD.some(w => new RegExp('(^|\\b)'+escapeRx(w)+'(\\b|$)','i').test(text))) { delta += SCORE_GOOD; notes.push('👍 höflich'); }
-    if ((/(^|\s)ich\s+(finde|fühle|denke|glaube)\b/i).test(text)) { delta += SCORE_ICH; notes.push('👍 Ich-Botschaft'); }
-    // Negativ Kategorien
-    if (containsAny(text, BAD_RACIST)) { delta -= PENALTY_RACIST; notes.push('🚫 rassistisch'); }
-    if (containsAny(text, BAD_SEXIST)) { delta -= PENALTY_SEXIST; notes.push('❌ sexistisch'); }
-    if (containsAny(text, BAD_RUDE))   { delta -= PENALTY_RUDE;   notes.push('⚠️ unhöflich'); }
-    // Spam / Zuspitzungen
-    if (/(?:!{3,}|\?{3,})/.test(text)) { delta -= 1; notes.push('⚠️ Satzzeichen-Spam'); }
-    if (/\b(du|ihr)\s+(bist|seid)\s+immer\b/i.test(text)) { delta -= 1; notes.push('⚠️ Unterstellung (immer)'); }
-    if (/\b(du|ihr)\s+(bist|seid)\s+nie\b/i.test(text))   { delta -= 1; notes.push('⚠️ Unterstellung (nie)'); }
-    if (isShouting(text)) { delta -= 1; notes.push('⚠️ Schreien (GROẞ)'); }
-    // Frage positiv, wenn nicht geschrien
-    if (/\?$/.test(text) && !isShouting(text)) { delta += 1; notes.push('👍 nachfragen/klären'); }
-    // Deckelung
-    if (delta > 3) delta = 3; if (delta < -5) delta = -5; return { delta, notes };
-  }
-
-  // ===== Senden =====
-  function handleSend(){ const raw=msgInput.value; const text=raw.trim(); if(!text) return;
-    const { delta, notes } = analyzeMessage(text); setScore(score + delta);
-    const display = censorText(text); addLine('you', display);
-    const tip = notes.length ? notes.join(' · ') : '👍 Danke – sachlich formuliert.'; const signed = ` (Score: ${score>=0?'+':''}${score})`;
-    addLine('bot', tip + signed); msgInput.value=''; msgInput.focus();
-  }
-  sendBtn.addEventListener('click', handleSend);
-  msgInput.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); handleSend(); } });
-
-  // ===== Reset + Auto-Timer (30:00) =====
-  const host = sendBtn.parentNode || document.body;
-  const resetBtn=document.createElement('button'); resetBtn.textContent='Reset'; resetBtn.style.marginLeft='8px';
-  const countdown=document.createElement('span'); countdown.textContent='30:00'; countdown.style.marginLeft='12px'; countdown.style.opacity='0.75'; countdown.setAttribute('aria-label','Zeit bis Auto-Reset');
-  host.appendChild(resetBtn); host.appendChild(countdown);
-
-  const DURATION_MS = 30*60*1000; let remaining=DURATION_MS; let tickId=null; let started=false;
-  function fmt(ms){ const s=Math.max(0,Math.floor(ms/1000)); const m=Math.floor(s/60); const sec=s%60; return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0'); }
-  function updateCountdown(){ countdown.textContent = fmt(remaining); }
-  function addBot(t){ addLine('bot', t); }
-  function clearChat(reason){ while(chatEl.firstChild) chatEl.removeChild(chatEl.firstChild); setScore(0); addBot(reason||'Chat wurde zurückgesetzt.'); }
-  function stopTimer(){ if(tickId){ clearInterval(tickId); tickId=null; } }
-  function startTimerOnce(){ if(started) return; started=true; remaining=DURATION_MS; updateCountdown(); tickId=setInterval(()=>{ remaining-=1000; if(remaining<=0){ stopTimer(); updateCountdown(); clearChat('Chat wurde automatisch geleert (Timer abgelaufen).'); } else updateCountdown(); },1000); }
-  sendBtn.addEventListener('click', startTimerOnce);
-  msgInput.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey) startTimerOnce(); });
-  resetBtn.addEventListener('click', ()=>{ stopTimer(); remaining=DURATION_MS; updateCountdown(); clearChat('Chat wurde zurückgesetzt.'); started=false; });
-  updateCountdown();
 })();
 </script>
 </body>
