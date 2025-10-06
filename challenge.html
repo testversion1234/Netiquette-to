@@ -725,5 +725,124 @@ function sendMessage(){
   }
 })();
 </script>
+
+<script>
+(function(){
+  // --- Robust room resolvers (handle URL ?room, #hash, label, fallback) ---
+  function getRoomParam(){
+    try{
+      const p = new URLSearchParams(location.search);
+      const r = (p.get('room') || p.get('r') || '').trim();
+      if (r) return r;
+    }catch(e){}
+    return '';
+  }
+  function getRoomFromHashOrGlobal(){
+    const h = (location.hash || '').replace('#','').trim();
+    if (h) return h;
+    if (typeof window.klasse !== 'undefined' && window.klasse) return String(window.klasse).trim();
+    const lab = document.getElementById('roomLabel');
+    if (lab && lab.textContent) return lab.textContent.trim();
+    return '';
+  }
+  function getRoomsToClear(){
+    const a = getRoomParam();
+    const b = getRoomFromHashOrGlobal();
+    const uniq = [];
+    [a,b].forEach(x=>{ if (x && !uniq.includes(x)) uniq.push(x); });
+    return uniq.length ? uniq : ['general'];
+  }
+
+  // --- Firebase remove using compat API if available, else modular ---
+  function removePath(path){
+    // Prefer compat (v8) since this file uses firebase.database() elsewhere
+    if (window.firebase && firebase.database) {
+      try {
+        return firebase.database().ref(path).remove();
+      } catch(e) {}
+    }
+    // Try modular (v9+ compat globals attached)
+    if (typeof window.getDatabase === 'function' && typeof window.ref === 'function') {
+      try {
+        const db = window.getDatabase(window.app || undefined);
+        const r  = window.ref(db, path);
+        return window.remove(r);
+      } catch(e) {}
+    }
+    return Promise.reject(new Error('Firebase Database API nicht gefunden'));
+  }
+
+  function wipeFirebaseForRooms(rooms){
+    const paths = [];
+    rooms.forEach(r => {
+      const enc = encodeURIComponent(r);
+      // messages + meta within rooms
+      paths.push(`rooms/${enc}`);
+      paths.push(`rooms/${enc}/messages`);
+      paths.push(`rooms/${enc}/meta`);
+      paths.push(`rooms/${enc}/scoreboard`);
+      // leaderboard variants (ROOM may not be encoded in original code; clear both)
+      paths.push(`leaderboard/${r}`);
+      paths.push(`leaderboard/${enc}`);
+    });
+    const jobs = paths.map(p => removePath(p).catch(()=>null));
+    return Promise.allSettled(jobs);
+  }
+
+  function clearLeaderboardDOM(){
+    const lb = document.getElementById('rangliste')
+        || document.getElementById('leaderboard')
+        || document.getElementById('ranking')
+        || document.querySelector('[data-role="leaderboard"]');
+    if (!lb) return;
+    while (lb.firstChild) lb.removeChild(lb.firstChild);
+    const info = document.createElement('div');
+    info.style.opacity = '0.65';
+    info.textContent = '— Rangliste geleert —';
+    lb.appendChild(info);
+  }
+
+  function clearChatDOM(reason){
+    const chatEl  = document.getElementById('chat') || document.getElementById('chatLog');
+    const scoreEl = document.getElementById('score') || document.getElementById('points');
+    if (chatEl) while (chatEl.firstChild) chatEl.removeChild(chatEl.firstChild);
+    if (scoreEl) scoreEl.textContent = '0';
+    if (chatEl){
+      const wrap = document.createElement('div');
+      wrap.className = 'line bot';
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+      bubble.textContent = reason || 'Chat wurde zurückgesetzt.';
+      wrap.appendChild(bubble);
+      chatEl.appendChild(wrap);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+    clearLeaderboardDOM();
+  }
+
+  function fullReset(reason){
+    const rooms = getRoomsToClear();
+    wipeFirebaseForRooms(rooms).finally(()=> clearChatDOM(reason));
+  }
+
+  // Patch the existing reset button (if present)
+  (function attachReset(){
+    const btn = document.getElementById('resetChatAll')
+            || document.getElementById('resetChat')
+            || document.querySelector('[data-role="reset"]');
+    if (!btn) return;
+    const clone = btn.cloneNode(true);
+    btn.parentNode.replaceChild(clone, btn);
+    clone.addEventListener('click', function(){
+      fullReset('Chat & Rangliste wurden zurückgesetzt.');
+    });
+  })();
+
+  // Expose a function for auto-timer to call
+  window.autoRoomClear = function(){
+    fullReset('Chat wurde automatisch geleert (Timer abgelaufen).');
+  };
+})();
+</script>
 </body>
 </html>
