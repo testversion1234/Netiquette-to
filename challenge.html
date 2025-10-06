@@ -391,10 +391,10 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
   const MAX_PER_MSG = 3, MIN_PER_MSG = -6;
 
   // --- Word lists (kept compact; extend as needed) ---
-  const POSITIVE = ["bitte","danke","gern","gerne","super","toll","klasse","prima","nett","freundlich","respekt"];
-  const INSULTS = ["idiot","depp","opfer","opfa","dummkopf","trottel","arsch","arschloch","scheiße","scheisse","fresse","halt die klappe"];
-  const RACISM  = ["ausländer raus","kanake","zigeuner","schlitzauge"]; // Kontext: Unterrichtsmoderation
-  const SEXISM  = ["schlampe","hure","nutte","geh küche","frauen können das nicht"]; // Kontext: Unterrichtsmoderation
+  const POSITIVE = ["bitte","danke","gern","gerne","super","toll","klasse","prima","nett","freundlich","respekt", "cool", "hilfsbereit", "gut gemacht", "danke dir", "schön", "mega", "perfekt", "top", "großartig", "fantastisch", "super gemacht", "sehr nett", "lieb", "höflich", "stark", "wunderbar", "fair", "ehrlich", "hilfe", "mutig", "gute idee", "tolle idee", "gut erklärt", "danke euch", "vielen dank", "klasse gemacht", "respektvoll", "gerne geschehen", "gern geschehen", "prima gemacht", "toll erklärt"];
+  const INSULTS = ["idiot","depp","opfer","opfa","dummkopf","trottel","arsch","arschloch","scheiße","scheisse","fresse","halt die klappe", "blöd", "du bist blöd", "spinner", "stinktier", "stinkst", "hundesohn", "du sohn einer", "du sohn von", "loser", "noob", "versager", "dummi", "dumm", "nichtsnutz", "vollpfosten", "hirni", "doofi", "kacke", "kotzbrocken", "pechvogel", "nichtskönner", "heulsuse", "memme", "schwachkopf", "vollidiot", "nullchecker", "langweiler", "dummschwätzer", "wichtigtuer", "klugscheißer", "opferkind", "blamage", "lappen", "lappenkopf", "babyhaft", "kindisch", "peinlich", "armselig", "lächerlich", "taugenichts", "versagerin", "niete", "flasche", "dödel", "pappnase", "pfeife", "wurst", "hohlkopf", "hirnlos", "banause", "honk", "pfosten", "spacken", "spasti", "affenkopf", "horst", "neandertaler", "bengel", "görenpack", "quatschkopf", "jammerlappen", "weichei", "krittler", "motzkopf", "motzmieze", "nörgler", "prahlhans", "wendehals", "fiesling", "giftzwerg", "dreikäsehoch", "blender", "großmaul", "großkotz", "frechdachs", "lackaffe", "wüterich", "rotzlöffel", "rotzgöre", "tollpatsch", "trantüte", "tölpel", "trotteline", "schlumpf", "luftikus", "hinterwäldler", "du kannst gar nichts", "keiner mag dich", "halt einfach still", "geh weg", "niemand braucht dich", "du hast keine ahnung", "du bist nutzlos", "du bist dumm", "du bist peinlich", "du bist lächerlich"];
+  const RACISM  = ["ausländer raus","kanake","zigeuner","schlitzauge", "jude als schimpfwort", "schwuchtel", "homo als beleidigung", "mongo", "behindert als schimpfwort", "zigeunerschnitzel als schimpfwort", "kanacke", "kanacken", "zigeunerkind", "gypsy als schimpfwort"]; // Kontext: Unterrichtsmoderation
+  const SEXISM  = ["schlampe","hure","nutte","geh küche","frauen können das nicht", "mädchen können das nicht", "geh in die küche", "küche kinder kirche", "männer heulen nicht", "typisch frau", "typisch mann", "geh abwaschen", "küchenmädchen", "schwaches mädchen", "dummes mädchen", "dummer junge", "mädchen sind schlechter", "jungen sind stärker"]; // Kontext: Unterrichtsmoderation
 
   // --- Spam heuristics ---
   function isSpam(text) {
@@ -428,7 +428,7 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
     if (hasAny(text, RACISM)) { delta += PTS.racism; flags.push("racism"); }
     if (hasAny(text, SEXISM)) { delta += PTS.sexism; flags.push("sexism"); }
     if (hasAny(text, INSULTS)) { delta += PTS.insult; flags.push("insult"); }
-    if (hasAny(text, ["fuck","fick","hurensohn","wixer","wichser"])) { delta += PTS.profanity; flags.push("profanity"); }
+    if (hasAny(text, ["fuck","fick","hurensohn","wixer","wichser", "bastard", "scheißkerl", "arschgesicht", "verpiss", "halt dein maul", "halt die fresse", "scheiß drauf", "piss dich", "fotze", "miststück"])) { delta += PTS.profanity; flags.push("profanity"); }
     if (delta === 0 && hasAny(text, POSITIVE)) { delta += PTS.positive; flags.push("positive"); }
     // clamp
     if (delta > MAX_PER_MSG) delta = MAX_PER_MSG;
@@ -612,6 +612,143 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
   } else {
     startObserver();
   }
+})();
+</script>
+
+
+<script>
+/* === Netiquette: Auto-Reset (30 Min) & Firebase-Cleanup === */
+(() => {
+  const TTL_MINUTES = 30;
+  const ROOM = (window.klasse || (location.hash.replace('#','') || 'global')).toString().slice(0, 32);
+  const storeKey = `netiq-leaderboard-${ROOM}`;
+
+  // Track activity
+  let lastActivity = Date.now();
+  function markActivity(){ lastActivity = Date.now(); }
+  document.addEventListener("visibilitychange", markActivity, { passive: true });
+  window.addEventListener("focus", markActivity, { passive: true });
+
+  function getChatEl() {
+    return document.querySelector("#chat") || document.querySelector('[role="log"]') || null;
+  }
+
+  // Watch chat additions to mark activity
+  function watchChat() {
+    const chat = getChatEl();
+    if (!chat) return;
+    const obs = new MutationObserver(muts => {
+      muts.forEach(m => {
+        if (m.addedNodes && m.addedNodes.length) markActivity();
+      });
+    });
+    obs.observe(chat, { childList: true, subtree: false });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", watchChat);
+  } else {
+    watchChat();
+  }
+
+  // Toast helper (standalone in case core script isn't loaded yet)
+  function toast(html) {
+    let t = document.getElementById("netiq-toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "netiq-toast";
+      Object.assign(t.style, {
+        position: "fixed", right: "12px", bottom: "12px",
+        maxWidth: "380px", background: "#111827", color:"#fff",
+        padding: "10px 12px", borderRadius:"10px", zIndex: 10000,
+        boxShadow: "0 10px 30px rgba(0,0,0,.25)"
+      });
+      document.body.appendChild(t);
+    }
+    t.innerHTML = html;
+    t.style.opacity = "1";
+    setTimeout(() => { t.style.opacity = "0"; }, 2500);
+  }
+
+  function localClear() {
+    // clear chat DOM
+    const chat = getChatEl();
+    if (chat) chat.innerHTML = "";
+    // clear local leaderboard
+    try { localStorage.setItem(storeKey, "{}"); } catch(e) {}
+    // let user know
+    toast("Chat & Punkte wurden wegen 30 Min. Inaktivität geleert.");
+  }
+
+  // Firebase cleanup for entries older than TTL
+  function firebaseCleanup() {
+    return new Promise((resolve) => {
+      // If no Firebase, we're done
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) { resolve(); return; }
+      const db = firebase.database();
+      const cutoff = Date.now() - TTL_MINUTES * 60 * 1000;
+
+      let pending = 0;
+      const done = () => { if (--pending <= 0) resolve(); };
+
+      // Leaderboard cleanup (by ts)
+      pending++;
+      db.ref(`leaderboard/${ROOM}`).orderByChild("ts").endAt(cutoff).once("value")
+        .then(snap => {
+          const val = snap.val() || {};
+          const updates = {};
+          Object.keys(val).forEach(k => { updates[k] = null; });
+          if (Object.keys(updates).length) {
+            return db.ref(`leaderboard/${ROOM}`).update(updates);
+          }
+        })
+        .finally(done)
+        .catch(() => done());
+
+      // Try to detect common chat paths; allow override via window.NETIQ_CHAT_BASE
+      const bases = window.NETIQ_CHAT_BASE ? [window.NETIQ_CHAT_BASE] : ["rooms","chat","chats","messages","room_chat","roomChat"];
+      const paths = [];
+      bases.forEach(b => {
+        paths.push(`${b}/${ROOM}`);
+        paths.push(`${b}/${ROOM}/messages`);
+      });
+
+      if (!paths.length) { resolve(); return; }
+
+      pending += paths.length;
+      paths.forEach(p => {
+        db.ref(p).orderByChild("ts").endAt(cutoff).once("value")
+          .then(snap => {
+            const val = snap.val() || {};
+            const updates = {};
+            Object.keys(val).forEach(k => {
+              const entry = val[k];
+              if (entry && typeof entry === "object" && typeof entry.ts === "number" && entry.ts <= cutoff) {
+                updates[k] = null;
+              }
+            });
+            if (Object.keys(updates).length) {
+              return db.ref(p).update(updates);
+            }
+          })
+          .finally(done)
+          .catch(() => done());
+      });
+      // if only leaderboard existed and had no old entries, pending will still resolve
+      if (pending === 0) resolve();
+    });
+  }
+
+  // Periodic check every minute
+  setInterval(() => {
+    const inactiveFor = Date.now() - lastActivity;
+    if (inactiveFor >= TTL_MINUTES * 60 * 1000) {
+      localClear();
+      firebaseCleanup().finally(() => {
+        // reset clock after cleanup so it only fires once per idle window
+        lastActivity = Date.now();
+      });
+    }
+  }, 60 * 1000);
 })();
 </script>
 
