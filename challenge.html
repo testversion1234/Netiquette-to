@@ -24,6 +24,61 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 .footer{max-width:1100px;margin:0 auto 42px;text-align:center;color:var(--muted)}
 .footer img{width:320px;max-width:95%;border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.12)}
 </style>
+<style>
+/* === Netiquette Leaderboard (non-intrusive, fixed) === */
+#netiq-leaderboard {
+  position: fixed;
+  left: 10px;
+  top: 10px;
+  width: 260px;
+  max-height: 85vh;
+  overflow: auto;
+  z-index: 9999;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+#netiq-leaderboard header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef2f7;
+  font-weight: 700;
+}
+#netiq-leaderboard header button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 8px;
+}
+#netiq-leaderboard ol {
+  list-style: none;
+  margin: 0;
+  padding: 8px 12px 12px;
+}
+#netiq-leaderboard li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+#netiq-leaderboard li .rank { 
+  min-width: 22px; 
+  text-align: right; 
+  font-weight: 700; 
+  opacity: .7; 
+}
+#netiq-leaderboard li .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#netiq-leaderboard li .pts { font-weight: 800; }
+@media (max-width: 900px) {
+  #netiq-leaderboard { width: 200px; }
+}
+</style>
 </head>
 <body>
 <header>
@@ -326,5 +381,239 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
   });
 })();
 </script>
+
+<script>
+(() => {
+  // --- Config ---
+  const ROOM = (window.klasse || (location.hash.replace('#','') || 'global')).toString().slice(0, 32);
+  // point rules
+  const PTS = { insult:-3, racism:-4, sexism:-4, profanity:-2, spam:-2, positive:+1 };
+  const MAX_PER_MSG = 3, MIN_PER_MSG = -6;
+
+  // --- Word lists (kept compact; extend as needed) ---
+  const POSITIVE = ["bitte","danke","gern","gerne","super","toll","klasse","prima","nett","freundlich","respekt"];
+  const INSULTS = ["idiot","depp","opfer","opfa","dummkopf","trottel","arsch","arschloch","scheiße","scheisse","fresse","halt die klappe"];
+  const RACISM  = ["ausländer raus","kanake","zigeuner","schlitzauge"]; // Kontext: Unterrichtsmoderation
+  const SEXISM  = ["schlampe","hure","nutte","geh küche","frauen können das nicht"]; // Kontext: Unterrichtsmoderation
+
+  // --- Spam heuristics ---
+  function isSpam(text) {
+    const t = text.trim().toLowerCase();
+    if (!t) return false;
+    // many repeated characters (e.g., heyyyyyy, loooool)
+    if (/(.)\1{3,}/.test(t)) return true;
+    // same short token repeated (hi hi hi hi...)
+    const tokens = t.split(/\s+/).filter(Boolean);
+    if (tokens.length >= 6) {
+      const counts = {};
+      tokens.forEach(w => counts[w] = (counts[w]||0)+1);
+      const maxFreq = Math.max(...Object.values(counts));
+      const uniqRatio = Object.keys(counts).length / tokens.length;
+      if (maxFreq / tokens.length >= 0.6 || uniqRatio <= 0.35) return true;
+    }
+    // excessive length with little variety
+    if (t.length > 300) return true;
+    return false;
+  }
+
+  function hasAny(text, list) {
+    const t = " " + text.toLowerCase() + " ";
+    return list.some(w => t.includes(" " + w + " "));
+  }
+
+  function analyzeMessage(text) {
+    let delta = 0;
+    const flags = [];
+    if (isSpam(text)) { delta += PTS.spam; flags.push("spam"); }
+    if (hasAny(text, RACISM)) { delta += PTS.racism; flags.push("racism"); }
+    if (hasAny(text, SEXISM)) { delta += PTS.sexism; flags.push("sexism"); }
+    if (hasAny(text, INSULTS)) { delta += PTS.insult; flags.push("insult"); }
+    if (hasAny(text, ["fuck","fick","hurensohn","wixer","wichser"])) { delta += PTS.profanity; flags.push("profanity"); }
+    if (delta === 0 && hasAny(text, POSITIVE)) { delta += PTS.positive; flags.push("positive"); }
+    // clamp
+    if (delta > MAX_PER_MSG) delta = MAX_PER_MSG;
+    if (delta < MIN_PER_MSG) delta = MIN_PER_MSG;
+    const blocked = flags.some(f => ["spam","racism","sexism","insult","profanity"].includes(f));
+    return { delta, flags, blocked };
+  }
+
+  // --- Leaderboard state ---
+  const storeKey = `netiq-leaderboard-${ROOM}`;
+  let scores = JSON.parse(localStorage.getItem(storeKey) || "{}");
+
+  function persistLocal() {
+    localStorage.setItem(storeKey, JSON.stringify(scores));
+  }
+
+  function upsert(name, delta) {
+    if (!name) return;
+    if (!scores[name]) scores[name] = 0;
+    scores[name] += delta;
+    persistLocal();
+    renderBoard();
+    publishScore(name); // try to sync
+  }
+
+  // --- UI ---
+  function ensureBoard() {
+    if (document.getElementById("netiq-leaderboard")) return;
+    const box = document.createElement("aside");
+    box.id = "netiq-leaderboard";
+    box.innerHTML = `
+      <header>
+        <span>Rangliste (${ROOM})</span>
+        <button title="ein-/ausklappen" aria-label="toggle" id="netiq-toggle">–</button>
+      </header>
+      <ol id="netiq-list"></ol>
+    `;
+    document.body.appendChild(box);
+    document.getElementById("netiq-toggle").addEventListener("click", () => {
+      const list = document.getElementById("netiq-list");
+      list.style.display = (list.style.display === "none") ? "block" : "none";
+    });
+    renderBoard();
+  }
+
+  function renderBoard() {
+    const list = document.getElementById("netiq-list");
+    if (!list) return;
+    const sorted = Object.entries(scores)
+      .sort((a,b) => b[1]-a[1])
+      .slice(0, 20);
+    list.innerHTML = sorted.map(([name, pts], i) => `
+      <li>
+        <span class="rank">${i+1}.</span>
+        <span class="name">${escapeHtml(name)}</span>
+        <span class="pts">${pts > 0 ? "+"+pts : pts}</span>
+      </li>
+    `).join("") || `<li><span class="name">Noch keine Punkte</span></li>`;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  // --- Firebase sync (optional) ---
+  let db = null;
+  try {
+    if (window.firebase && firebase.apps && firebase.apps.length) {
+      db = firebase.database();
+    }
+  } catch(e) {}
+
+  function publishScore(name) {
+    if (!db) return; // local only
+    const ref = db.ref(`leaderboard/${ROOM}/${slug(name)}`);
+    ref.set({ name, score: scores[name] || 0, ts: Date.now() }).catch(()=>{});
+  }
+
+  function subscribeBoard() {
+    if (!db) return;
+    db.ref(`leaderboard/${ROOM}`).on("value", snap => {
+      const val = snap.val() || {};
+      // merge remote into local (prefer highest)
+      Object.values(val).forEach(entry => {
+        const { name, score } = entry || {};
+        if (!name) return;
+        if (!scores[name] || score !== scores[name]) {
+          scores[name] = score|0;
+        }
+      });
+      persistLocal();
+      renderBoard();
+    });
+  }
+
+  function slug(s) {
+    return (s||"")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+      .slice(0, 40) || "user";
+  }
+
+  // --- Observe chat to moderate and score ---
+  function getChatEl() {
+    return document.querySelector("#chat") || document.querySelector('[role="log"]') || null;
+  }
+
+  function deriveNameAndText(node) {
+    // Try common pattern "Name: text"
+    const t = (node.textContent || "").trim();
+    const m = t.match(/^([^:]{1,30}):\s*(.*)$/);
+    if (m) return { name: m[1].trim(), text: m[2].trim() };
+    // Fallback: data attributes?
+    const n = node.getAttribute?.("data-user");
+    const txt = node.getAttribute?.("data-text");
+    if (n && txt) return { name: n, text: txt };
+    return null;
+  }
+
+  function moderateNode(node) {
+    const nt = deriveNameAndText(node);
+    if (!nt) return;
+    const { name, text } = nt;
+    const res = analyzeMessage(text);
+
+    if (res.blocked) {
+      // Remove message from UI
+      node.remove();
+      // Feedback bubble (non-intrusive)
+      toast(`Nachricht von <b>${escapeHtml(name)}</b> wurde unterdrückt (${res.flags.join(", ")}). ${res.delta} Punkte.`);
+      upsert(name, res.delta);
+      return;
+    }
+    if (res.delta !== 0) {
+      upsert(name, res.delta);
+    }
+  }
+
+  function toast(html) {
+    let t = document.getElementById("netiq-toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "netiq-toast";
+      Object.assign(t.style, {
+        position: "fixed", right: "12px", bottom: "12px",
+        maxWidth: "380px", background: "#111827", color:"#fff",
+        padding: "10px 12px", borderRadius:"10px", zIndex: 10000,
+        boxShadow: "0 10px 30px rgba(0,0,0,.25)"
+      });
+      document.body.appendChild(t);
+    }
+    t.innerHTML = html;
+    t.style.opacity = "1";
+    setTimeout(() => { t.style.opacity = "0"; }, 2500);
+  }
+
+  function startObserver() {
+    const chat = getChatEl();
+    if (!chat) return;
+    const obs = new MutationObserver(muts => {
+      muts.forEach(m => {
+        m.addedNodes.forEach(n => {
+          if (n.nodeType === 1) moderateNode(n);
+        });
+      });
+    });
+    obs.observe(chat, { childList: true, subtree: false });
+    // also scan existing messages at start
+    Array.from(chat.children || []).forEach(moderateNode);
+  }
+
+  // kick off
+  ensureBoard();
+  subscribeBoard();
+  // Defer observer until DOM ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startObserver);
+  } else {
+    startObserver();
+  }
+})();
+</script>
+
 </body>
 </html>
