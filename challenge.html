@@ -24,6 +24,61 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 .footer{max-width:1100px;margin:0 auto 42px;text-align:center;color:var(--muted)}
 .footer img{width:320px;max-width:95%;border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.12)}
 </style>
+<style>
+/* === Netiquette Leaderboard (non-intrusive, fixed) === */
+#netiq-leaderboard {
+  position: fixed;
+  left: 10px;
+  top: 10px;
+  width: 260px;
+  max-height: 85vh;
+  overflow: auto;
+  z-index: 9999;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.12);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+#netiq-leaderboard header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef2f7;
+  font-weight: 700;
+}
+#netiq-leaderboard header button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 8px;
+}
+#netiq-leaderboard ol {
+  list-style: none;
+  margin: 0;
+  padding: 8px 12px 12px;
+}
+#netiq-leaderboard li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+#netiq-leaderboard li .rank { 
+  min-width: 22px; 
+  text-align: right; 
+  font-weight: 700; 
+  opacity: .7; 
+}
+#netiq-leaderboard li .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#netiq-leaderboard li .pts { font-weight: 800; }
+@media (max-width: 900px) {
+  #netiq-leaderboard { width: 200px; }
+}
+</style>
 </head>
 <body>
 <header>
@@ -59,43 +114,6 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <script>
-function analyzeMessage(msg){
-  const notes = [];
-  let delta = 0;
-  const raw = msg || "";
-  const lower = raw.toLowerCase();
-
-  // --- Spam ---
-  if (/(.)\1{3,}/.test(lower)) { delta -= 1; notes.push("⚠️ Bitte keine Buchstaben-Streckung."); }
-  if (/\b([\p{L}]{2,3})\b(?:[\s\W]*\1\b){2,}/iu.test(lower)) { delta -= 1; notes.push("⚠️ Bitte keine ständigen Wiederholungen."); }
-  if (/([\p{L}]{2,6})\1{2,}/iu.test(lower)) { delta -= 1; notes.push("⚠️ Bitte keine Wiederholung (z.B. NettNettNett)."); }
-
-  // --- Shouting / !!! ??? / Emoji-Spam (nach Index-Vorbild) ---
-  if (raw.length>=6 && raw === raw.toUpperCase()) { delta--; notes.push("⚠️ Bitte nicht BRÜLLEN (ALL CAPS)."); }
-  const excls = (raw.match(/!/g)||[]).length, ques = (raw.match(/\?/g)||[]).length;
-  if (excls>=3 || ques>=3) { delta--; notes.push("⚠️ Zu viele !!! oder ???."); }
-  if ((raw.match(/[\u{1F300}-\u{1FAFF}]/gu)||[]).length>=3) { delta--; notes.push("⚠️ Zu viele Emojis."); }
-
-  // --- Directed slurs like "du lesbe/homo ..." (ohne Wortliste zu ändern) ---
-  if (/\bdu\b[\s\W]*?(?:[\p{L}0-9_]+[\s\W]*){0,3}\b(lesbe|homo|lespe|schwuchtel|transe)\b/iu.test(lower)) {
-    delta -= 5; notes.push("⚠️ Beleidigende Anrede ist nicht erlaubt.");
-  }
-
-  // --- DU-Unterstellungen (nach Index-Charakter) ---
-  if (/\bdu\b.*\b(bist|machst|hast)\b.*\b(immer|nie|total|schlecht|dumm|blöd)\b/i.test(lower)) {
-    delta--; notes.push("⚠️ Vermeide DU-Unterstellungen – nutze Ich-Botschaft.");
-  }
-
-  // --- Positive Sprache / Ich-Botschaft ---
-  // (wir greifen NICHT in Wortlisten ein; einfache Muster-Erkennung)
-  if (/\bich\b/.test(lower)) { delta += 1; notes.push("✅ Gute Ich-Botschaft."); }
-  if (/(kannst du|könntest du|was genau|wie meinst du|würdest du|bitte)/i.test(lower)) { delta += 1; notes.push("✅ Nachfragen erkannt."); }
-  if (/(sorry|entschuldigung|tut mir leid|lass uns|sachlich|ruhig|kein problem|klären|lösung)/i.test(lower)) { delta += 1; notes.push("✅ Deeskalation."); }
-
-  return { delta, notes };
-}
-
-
 (function(){
   // Firebase config (unchanged)
   const firebaseConfig = {
@@ -209,6 +227,26 @@ function analyzeMessage(msg){
     const reset = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
+  function hasRacistSlur(text) {
+    const t = " " + normText(text) + " ";
+    const re = /\bni+g+([ae]r|a)\b/i; // moderation-only pattern (variants)
+    return re.test(t);
+  }
+
+  function normText(txt) {
+    return (txt || "")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[0]/g, "o")
+      .replace(/[1!|]/g, "i")
+      .replace(/@/g, "a")
+      .replace(/\$/g, "s")
+      .replace(/3/g, "e")
+      .replace(/\W+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
         messagesRef.remove();
         roomRef.child('meta/clearedAt').set(firebase.database.ServerValue.TIMESTAMP);
         roomRef.child('meta/cleanupAt').remove();
@@ -230,14 +268,14 @@ function ready(fn){ if (document.readyState !== 'loading') fn(); else document.a
     const msg  = document.getElementById('msg');
     const roomLabel = document.getElementById('roomLabel');
     const nickLabel = document.getElementById('nickLabel');
-    const scoreEl = document.getElementById('score'); if(scoreEl && !scoreEl.textContent) scoreEl.textContent='0';
+    const scoreEl = document.getElementById('score');
 
     // Params
     const params = new URLSearchParams(location.search);
     const room = (params.get('room')||'general').trim();
     const nick = (params.get('nick')||'Anonym').trim();
     
-    const isChallenge = true; // Challenge-Datei: Modus dauerhaft aktiv
+    const isChallenge = (params.get('challenge') === '1');
 if (roomLabel) roomLabel.textContent = room || '—';
     if (nickLabel) nickLabel.textContent = nick || '—';
 
@@ -309,47 +347,536 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
         renderMessage(m);
         if (typeof localClear !== 'undefined') localClear.reset();
         // Punkte für positive Wörter & Ich-Form beim Empfang
-        // (disabled to avoid double counting)
+        updateScore(scoreEl, positiveDelta(m && m.text));
       }, function(err){ showErr(chat, 'on(child_added) denied: ' + (err && err.message || err)); });
     } catch(err) {
       showErr(chat, 'Listener setup failed: ' + (err && err.message || err));
     }
 
+    function sendMessage(){
+      const t = (msg && msg.value || '').trim();
+      if (!t) return;
+
+      // Klassifizieren vor dem Senden
+      const c = classify(t);
+      if (!c.ok){
+        showWarn(chat, 'Deine Nachricht wurde blockiert (' + c.category + ').');
+        updateScore(scoreEl, c.penalty);
+        if (isChallenge) bumpScore(nick, c.penalty);
+        if (msg){ msg.value=''; msg.focus(); }
+        return;
+      }
+
+      // Nachricht zulässig → senden
+      const payload = { user: nick, text: t, ts: firebase.database.ServerValue.TIMESTAMP };
+      db.ref(path).push(payload, function(err){
+        if (err) showErr(chat, 'push failed: ' + (err && err.message || err));
+      });
+      // Meta-Infos für geplante Bereinigung
+      metaRef.child('lastMessageTs').set(firebase.database.ServerValue.TIMESTAMP);
+      metaRef.child('cleanupAt').set(Date.now() + INACTIVITY_MS);
     
-function sendMessage(){
-  const t = (msg && msg.value || '').trim();
-  if (!t) return;
 
-  const res = analyzeMessage(t);
+      // lokale Pluspunkte (positive Wörter + Ich-Form) für eigenen Beitrag
+      const posDelta = positiveDelta(t);
+      updateScore(scoreEl, posDelta);
+      if (isChallenge) bumpScore(nick, posDelta);
+      // Encouragement notes (Ich-Form / Positiv)
+      var ich = hasIchForm(t);
+      var pos = (function(){ 
+        var dt = 0; 
+        var tt = t.toLowerCase(); 
+        for (var i=0;i<GOOD.length;i++){ if (tt.indexOf(GOOD[i]) !== -1) dt++; } 
+        return dt > 0; 
+      })();
+      if (ich && pos) { showPositiveNote(chat, "🌈 Richtig stark – positives Ich-Statement!"); }
+      else if (ich)   { showPositiveNote(chat, "😊 Super, dass du in der Ich-Form schreibst!"); }
+      else if (pos)   { showPositiveNote(chat, "🌟 Toll, wie freundlich du bist!"); }
 
-  // Negative -> block & score
-  if (res.delta < 0){
-    showWarn(chat, (res.notes.length ? res.notes.join(" ") : "⚠️ Unzulässige Nachricht."));
-    updateScore(scoreEl, res.delta);
-    if (isChallenge) bumpScore(nick, res.delta);
-    if (msg){ msg.value=''; msg.focus(); }
-    return;
-  }
-
-  // Allowed -> send
-  const payload = { user: nick, text: t, ts: firebase.database.ServerValue.TIMESTAMP };
-  db.ref(path).push(payload, function(err){
-    if (err) showErr(chat, 'push failed: ' + (err && err.message || err));
-  });
-
-  // Positive notes -> reward
-  if (res.delta > 0){
-    showPositiveNote(chat, res.notes.join(" "));
-    updateScore(scoreEl, res.delta);
-    if (isChallenge) bumpScore(nick, res.delta);
-  }
-  if (msg){ msg.value=''; msg.focus(); }
-}
-
+      if (msg){ msg.value=''; msg.focus(); }
+    }
 
     if (send) send.addEventListener('click', sendMessage);
     if (msg)  msg.addEventListener('keydown', function(e){ if(e.key==='Enter') sendMessage(); });
   });
+})();
+</script>
+
+<script>
+(() => {
+  // --- Config ---
+  const ROOM = (window.klasse || (location.hash.replace('#','') || 'global')).toString().slice(0, 32);
+  // point rules
+  const PTS = { insult:-3, racism:-4, sexism:-4, profanity:-2, spam:-2, positive:+1 };
+  const MAX_PER_MSG = 3, MIN_PER_MSG = -6;
+
+  // --- Word lists (kept compact; extend as needed) ---
+  const POSITIVE = ["bitte","danke","gern","gerne","super","toll","klasse","prima","nett","freundlich","respekt", "cool", "hilfsbereit", "gut gemacht", "danke dir", "schön", "mega", "perfekt", "top", "großartig", "fantastisch", "super gemacht", "sehr nett", "lieb", "höflich", "stark", "wunderbar", "fair", "ehrlich", "hilfe", "mutig", "gute idee", "tolle idee", "gut erklärt", "danke euch", "vielen dank", "klasse gemacht", "respektvoll", "gerne geschehen", "gern geschehen", "prima gemacht", "toll erklärt"];
+  const INSULTS = ["idiot","depp","opfer","opfa","dummkopf","trottel","arsch","arschloch","scheiße","scheisse","fresse","halt die klappe", "blöd", "du bist blöd", "spinner", "stinktier", "stinkst", "hundesohn", "du sohn einer", "du sohn von", "loser", "noob", "versager", "dummi", "dumm", "nichtsnutz", "vollpfosten", "hirni", "doofi", "kacke", "kotzbrocken", "pechvogel", "nichtskönner", "heulsuse", "memme", "schwachkopf", "vollidiot", "nullchecker", "langweiler", "dummschwätzer", "wichtigtuer", "klugscheißer", "opferkind", "blamage", "lappen", "lappenkopf", "babyhaft", "kindisch", "peinlich", "armselig", "lächerlich", "taugenichts", "versagerin", "niete", "flasche", "dödel", "pappnase", "pfeife", "wurst", "hohlkopf", "hirnlos", "banause", "honk", "pfosten", "spacken", "spasti", "affenkopf", "horst", "neandertaler", "bengel", "görenpack", "quatschkopf", "jammerlappen", "weichei", "krittler", "motzkopf", "motzmieze", "nörgler", "prahlhans", "wendehals", "fiesling", "giftzwerg", "dreikäsehoch", "blender", "großmaul", "großkotz", "frechdachs", "lackaffe", "wüterich", "rotzlöffel", "rotzgöre", "tollpatsch", "trantüte", "tölpel", "trotteline", "schlumpf", "luftikus", "hinterwäldler", "du kannst gar nichts", "keiner mag dich", "halt einfach still", "geh weg", "niemand braucht dich", "du hast keine ahnung", "du bist nutzlos", "du bist dumm", "du bist peinlich", "du bist lächerlich"];
+  const RACISM  = ["ausländer raus","kanake","zigeuner","schlitzauge", "jude als schimpfwort", "schwuchtel", "homo als beleidigung", "mongo", "behindert als schimpfwort", "zigeunerschnitzel als schimpfwort", "kanacke", "kanacken", "zigeunerkind", "gypsy als schimpfwort"]; // Kontext: Unterrichtsmoderation
+  const SEXISM  = ["schlampe","hure","nutte","geh küche","frauen können das nicht", "mädchen können das nicht", "geh in die küche", "küche kinder kirche", "männer heulen nicht", "typisch frau", "typisch mann", "geh abwaschen", "küchenmädchen", "schwaches mädchen", "dummes mädchen", "dummer junge", "mädchen sind schlechter", "jungen sind stärker"]; // Kontext: Unterrichtsmoderation
+
+  // --- Spam heuristics ---
+  function isSpam(text) {
+    const raw = (text || "");
+    const t = (typeof normText === 'function') ? normText(raw) : raw.toLowerCase().trim();
+    if (!t) return false;
+    if (/(.)\1{3,}/.test(raw.toLowerCase())) return true;
+    if (/([a-zäöüß]{2,6})\1{2,}/i.test(t)) return true;
+    if (/\b([a-zäöüß]{2,3})(\s+\1){3,}\b/i.test(t)) return true;
+    if (/\b([a-zäöüß]{1,3})\s+([a-zäöüß]{1,3})(?:\s+\1\s+\2){2,}\b/i.test(t)) return true;
+    const tokens = t.split(/\s+/).filter(Boolean);
+    if (tokens.length) {
+      const counts = {}; tokens.forEach(w => counts[w] = (counts[w]||0)+1);
+      if (Object.values(counts).some(c => c >= 3)) return true;
+      if (tokens.length >= 6) {
+        const maxFreq = Math.max(...Object.values(counts));
+        const uniqRatio = Object.keys(counts).length / tokens.length;
+        if (maxFreq / tokens.length >= 0.6 || uniqRatio <= 0.35) return true;
+      }
+    }
+    if (raw.length > 300) return true;
+    return false;
+  }
+
+  function hasAny(text, list) {
+    const t = " " + text.toLowerCase() + " ";
+    return list.some(w => t.includes(" " + w + " "));
+  }
+
+  
+  function directedSlur(text) {
+    const t = " " + normText(text) + " ";
+    const pattern = /\bdu\s+(bist\s+)?(homo|lesbe|lespe|schwuchtel|transe)\b/i;
+    return pattern.test(t);
+  }
+
+
+  function analyzeMessage(text) {
+    let delta = 0;
+    const flags = [];
+    if (hasRacistSlur(text)) { delta += PTS.racism; flags.push('racism'); }
+    if (directedSlur(text)) { delta += PTS.sexism; flags.push('sexism'); }
+    if (directedSlur(text)) { delta += PTS.sexism; flags.push("sexism"); }
+    if (isSpam(text)) { delta += PTS.spam; flags.push("spam"); }
+    if (hasAny(text, RACISM)) { delta += PTS.racism; flags.push("racism"); }
+    if (hasAny(text, SEXISM)) { delta += PTS.sexism; flags.push("sexism"); }
+    if (hasAny(text, INSULTS)) { delta += PTS.insult; flags.push("insult"); }
+    if (hasAny(text, ["fuck","fick","hurensohn","wixer","wichser", "bastard", "scheißkerl", "arschgesicht", "verpiss", "halt dein maul", "halt die fresse", "scheiß drauf", "piss dich", "fotze", "miststück"])) { delta += PTS.profanity; flags.push("profanity"); }
+    if (delta === 0 && hasAny(text, POSITIVE)) { delta += PTS.positive; flags.push("positive"); }
+    // clamp
+    if (delta > MAX_PER_MSG) delta = MAX_PER_MSG;
+    if (delta < MIN_PER_MSG) delta = MIN_PER_MSG;
+    const blocked = flags.some(f => ["spam","racism","sexism","insult","profanity"].includes(f));
+    return { delta, flags, blocked };
+  }
+
+  // --- Leaderboard state ---
+  const storeKey = `netiq-leaderboard-${ROOM}`;
+  let scores = JSON.parse(localStorage.getItem(storeKey) || "{}");
+
+  function persistLocal() {
+    localStorage.setItem(storeKey, JSON.stringify(scores));
+  }
+
+  function upsert(name, delta) {
+    if (!name) return;
+    if (!scores[name]) scores[name] = 0;
+    scores[name] += delta;
+    persistLocal();
+    renderBoard();
+    publishScore(name); // try to sync
+  }
+
+  // --- UI ---
+  function ensureBoard() {
+    if (document.getElementById("netiq-leaderboard")) return;
+    const box = document.createElement("aside");
+    box.id = "netiq-leaderboard";
+    box.innerHTML = `
+      <header>
+        <span>Rangliste (${ROOM})</span>
+        <button title="ein-/ausklappen" aria-label="toggle" id="netiq-toggle">–</button>
+      </header>
+      <ol id="netiq-list"></ol>
+    `;
+    document.body.appendChild(box);
+    document.getElementById("netiq-toggle").addEventListener("click", () => {
+      const list = document.getElementById("netiq-list");
+      list.style.display = (list.style.display === "none") ? "block" : "none";
+    });
+    renderBoard();
+  }
+
+  function renderBoard() {
+    const list = document.getElementById("netiq-list");
+    if (!list) return;
+    const sorted = Object.entries(scores)
+      .sort((a,b) => b[1]-a[1])
+      .slice(0, 20);
+    list.innerHTML = sorted.map(([name, pts], i) => `
+      <li>
+        <span class="rank">${i+1}.</span>
+        <span class="name">${escapeHtml(name)}</span>
+        <span class="pts">${pts > 0 ? "+"+pts : pts}</span>
+      </li>
+    `).join("") || `<li><span class="name">Noch keine Punkte</span></li>`;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  // --- Firebase sync (optional) ---
+  let db = null;
+  try {
+    if (window.firebase && firebase.apps && firebase.apps.length) {
+      db = firebase.database();
+    }
+  } catch(e) {}
+
+  function publishScore(name) {
+    if (!db) return; // local only
+    const ref = db.ref(`leaderboard/${ROOM}/${slug(name)}`);
+    ref.set({ name, score: scores[name] || 0, ts: Date.now() }).catch(()=>{});
+  }
+
+  function subscribeBoard() {
+    if (!db) return;
+    db.ref(`leaderboard/${ROOM}`).on("value", snap => {
+      const val = snap.val() || {};
+      // merge remote into local (prefer highest)
+      Object.values(val).forEach(entry => {
+        const { name, score } = entry || {};
+        if (!name) return;
+        if (!scores[name] || score !== scores[name]) {
+          scores[name] = score|0;
+        }
+      });
+      persistLocal();
+      renderBoard();
+    });
+  }
+
+  function slug(s) {
+    return (s||"")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+      .slice(0, 40) || "user";
+  }
+
+  // --- Observe chat to moderate and score ---
+  function getChatEl() {
+    return document.querySelector("#chat") || document.querySelector('[role="log"]') || null;
+  }
+
+  
+  function deriveNameAndText(node) {
+    const t = (node.textContent || "").trim();
+    const m = t.match(/^(.{1,40}?):\s*(.*)$/);
+    if (m) return { name: m[1].trim(), text: m[2].trim() };
+    const n = node.getAttribute?.("data-user");
+    const txt = node.getAttribute?.("data-text");
+    if (n && txt) return { name: n, text: txt };
+    return null;
+  }
+
+  function moderateNode(node) {
+    const nt = deriveNameAndText(node);
+    if (!nt) return;
+    const { name, text } = nt;
+    const res = analyzeMessage(text);
+
+    if (res.blocked) {
+      // Remove message from UI
+      node.remove();
+      // Feedback bubble (non-intrusive)
+      toast(`Nachricht von <b>${escapeHtml(name)}</b> wurde unterdrückt (${res.flags.join(", ")}). ${res.delta} Punkte.`);
+      upsert(name, res.delta);
+      return;
+    }
+    if (res.delta !== 0) {
+      upsert(name, res.delta);
+    }
+  }
+
+  function toast(html) {
+    let t = document.getElementById("netiq-toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "netiq-toast";
+      Object.assign(t.style, {
+        position: "fixed", right: "12px", bottom: "12px",
+        maxWidth: "380px", background: "#111827", color:"#fff",
+        padding: "10px 12px", borderRadius:"10px", zIndex: 10000,
+        boxShadow: "0 10px 30px rgba(0,0,0,.25)"
+      });
+      document.body.appendChild(t);
+    }
+    t.innerHTML = html;
+    t.style.opacity = "1";
+    setTimeout(() => { t.style.opacity = "0"; }, 2500);
+  }
+
+  function startObserver() {
+    const chat = getChatEl();
+    if (!chat) return;
+    const obs = new MutationObserver(muts => {
+      muts.forEach(m => {
+        m.addedNodes.forEach(n => {
+          if (n.nodeType === 1) moderateNode(n);
+        });
+      });
+    });
+    obs.observe(chat, { childList: true, subtree: false });
+    // also scan existing messages at start
+    Array.from(chat.children || []).forEach(moderateNode);
+  }
+
+  // kick off
+  ensureBoard();
+  subscribeBoard();
+  // Defer observer until DOM ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startObserver);
+  } else {
+    startObserver();
+  }
+})();
+</script>
+
+
+<script>
+/* === Netiquette: Auto-Reset (30 Min) & Firebase-Cleanup === */
+(() => {
+  const TTL_MINUTES = 30;
+  const ROOM = (window.klasse || (location.hash.replace('#','') || 'global')).toString().slice(0, 32);
+  const storeKey = `netiq-leaderboard-${ROOM}`;
+
+  // Track activity
+  let lastActivity = Date.now();
+  let lastMessageTs = Date.now();
+  function markActivity(){ lastActivity = Date.now(); }
+  document.addEventListener("visibilitychange", markActivity, { passive: true });
+  window.addEventListener("focus", markActivity, { passive: true });
+
+  function getChatEl() {
+    return document.querySelector("#chat") || document.querySelector('[role="log"]') || null;
+  }
+
+  // Watch chat additions to mark activity
+  function watchChat() {
+    const chat = getChatEl();
+    if (!chat) return;
+    const obs = new MutationObserver(muts => {
+      muts.forEach(m => {
+        if (m.addedNodes && m.addedNodes.length) { markActivity(); lastMessageTs = Date.now(); }
+      });
+    });
+    obs.observe(chat, { childList: true, subtree: false });
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", watchChat);
+  } else {
+    watchChat();
+  }
+
+  // Toast helper (standalone in case core script isn't loaded yet)
+  function toast(html) {
+    let t = document.getElementById("netiq-toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "netiq-toast";
+      Object.assign(t.style, {
+        position: "fixed", right: "12px", bottom: "12px",
+        maxWidth: "380px", background: "#111827", color:"#fff",
+        padding: "10px 12px", borderRadius:"10px", zIndex: 10000,
+        boxShadow: "0 10px 30px rgba(0,0,0,.25)"
+      });
+      document.body.appendChild(t);
+    }
+    t.innerHTML = html;
+    t.style.opacity = "1";
+    setTimeout(() => { t.style.opacity = "0"; }, 2500);
+  }
+
+  function localClear() {
+    // clear chat DOM
+    const chat = getChatEl();
+    if (chat) chat.innerHTML = "";
+    // clear local leaderboard
+    try { localStorage.setItem(storeKey, "{}"); } catch(e) {}
+    // let user know
+    toast("Chat & Punkte wurden wegen 30 Min. Inaktivität geleert.");
+  }
+
+  // Firebase cleanup for entries older than TTL
+  function firebaseCleanup() {
+    return new Promise((resolve) => {
+      // If no Firebase, we're done
+      if (!(window.firebase && firebase.apps && firebase.apps.length)) { resolve(); return; }
+      const db = firebase.database();
+      const cutoff = Date.now() - TTL_MINUTES * 60 * 1000;
+
+      let pending = 0;
+      const done = () => { if (--pending <= 0) resolve(); };
+
+      // Leaderboard cleanup (by ts)
+      pending++;
+      db.ref(`leaderboard/${ROOM}`).orderByChild("ts").endAt(cutoff).once("value")
+        .then(snap => {
+          const val = snap.val() || {};
+          const updates = {};
+          Object.keys(val).forEach(k => { updates[k] = null; });
+          if (Object.keys(updates).length) {
+            return db.ref(`leaderboard/${ROOM}`).update(updates);
+          }
+        })
+        .finally(done)
+        .catch(() => done());
+
+      // Try to detect common chat paths; allow override via window.NETIQ_CHAT_BASE
+      const bases = window.NETIQ_CHAT_BASE ? [window.NETIQ_CHAT_BASE] : ["rooms","chat","chats","messages","room_chat","roomChat"];
+      const paths = [];
+      bases.forEach(b => {
+        paths.push(`${b}/${ROOM}`);
+        paths.push(`${b}/${ROOM}/messages`);
+      });
+
+      if (!paths.length) { resolve(); return; }
+
+      pending += paths.length;
+      paths.forEach(p => {
+        db.ref(p).orderByChild("ts").endAt(cutoff).once("value")
+          .then(snap => {
+            const val = snap.val() || {};
+            const updates = {};
+            Object.keys(val).forEach(k => {
+              const entry = val[k];
+              if (entry && typeof entry === "object" && typeof entry.ts === "number" && entry.ts <= cutoff) {
+                updates[k] = null;
+              }
+            });
+            if (Object.keys(updates).length) {
+              return db.ref(p).update(updates);
+            }
+          })
+          .finally(done)
+          .catch(() => done());
+      });
+      // if only leaderboard existed and had no old entries, pending will still resolve
+      if (pending === 0) resolve();
+    });
+  }
+
+  // Periodic check every minute
+  setInterval(() => {
+    const now = Date.now();
+    const inactiveFor = now - lastActivity;
+    const sinceLastMsg = now - lastMessageTs;
+    if (sinceLastMsg >= TTL_MINUTES * 60 * 1000) {
+      localClear();
+      firebaseCleanup().finally(() => {
+        // reset clock after cleanup so it only fires once per idle window
+        lastActivity = Date.now();
+      });
+    }
+  }, 60 * 1000);
+})();
+</script>
+
+
+<!-- Append-only: Reset button + 30-minute auto-clear, no changes to existing logic -->
+<script>
+(function(){
+  const chatEl  = document.getElementById('chat') || document.getElementById('chatLog');
+  const sendBtn = document.getElementById('send');
+  const msg     = document.getElementById('msg');
+  const scoreEl = document.getElementById('score');
+  if(!chatEl || !sendBtn || !msg) return;
+
+  // UI elements
+  const resetBtn=document.createElement('button');
+  resetBtn.textContent='Reset';
+  resetBtn.id='resetChat';
+  resetBtn.style.marginLeft='8px';
+
+  const countdown=document.createElement('span');
+  countdown.id='countdown';
+  countdown.textContent='30:00';
+  countdown.style.marginLeft='12px';
+  countdown.style.opacity='0.75';
+
+  // Place next to existing send button
+  (sendBtn.parentNode || document.body).appendChild(resetBtn);
+  (sendBtn.parentNode || document.body).appendChild(countdown);
+
+  // Timer
+  const DURATION = 30*60*1000; // 30 min
+  let remaining = DURATION;
+  let ticking = null;
+  let started = false;
+
+  function fmt(ms){
+    const s = Math.max(0, Math.floor(ms/1000));
+    const m = Math.floor(s/60);
+    const sec = s % 60;
+    return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
+  }
+  function updateCountdown(){ countdown.textContent = fmt(remaining); }
+
+  function addBot(text){
+    const wrap = document.createElement('div');
+    wrap.className = 'line bot';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+    chatEl.appendChild(wrap);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function clearChat(reason){
+    while (chatEl.firstChild) chatEl.removeChild(chatEl.firstChild);
+    if (typeof updateScore === 'function' && scoreEl){ updateScore(scoreEl, -9999); updateScore(scoreEl, 0); } // reset via helper if present
+    if (scoreEl) scoreEl.textContent = '0';
+    addBot(reason || 'Chat wurde zurückgesetzt.');
+  }
+
+  function startOnce(){
+    if (started) return;
+    started = true;
+    remaining = DURATION;
+    updateCountdown();
+    ticking = setInterval(()=>{
+      remaining -= 1000;
+      if (remaining <= 0){
+        clearInterval(ticking); ticking=null;
+        updateCountdown();
+        clearChat('Chat wurde automatisch geleert (Timer abgelaufen).');
+        started = false;
+      } else {
+        updateCountdown();
+      }
+    }, 1000);
+  }
+
+  resetBtn.addEventListener('click', ()=>{
+    if (ticking) { clearInterval(ticking); ticking = null; }
+    remaining = DURATION;
+    started = false;
+    updateCountdown();
+    clearChat('Chat wurde zurückgesetzt.');
+  });
+
+  // Start timer on first message send
+  sendBtn.addEventListener('click', startOnce);
+  msg.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey) startOnce(); });
+
+  updateCountdown();
 })();
 </script>
 </body>
