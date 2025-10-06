@@ -402,7 +402,13 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
     if (!t) return false;
     // many repeated characters (e.g., heyyyyyy, loooool)
     if (/(.)\1{3,}/.test(t)) return true;
-    // contiguous same word 3+ times (e.g., 'hi hi hi')
+    // short token (2–3 letters) repeated 4+ without spaces, e.g., 'hahahaha'
+    if (/\b([a-zäöüß]{2,3})\1{3,}\b/i.test(t)) return true;
+    // short token (2–3 letters) repeated 4+ with spaces, e.g., 'ha ha ha ha'
+    if (/\b([a-zäöüß]{2,3})(\s+\1){3,}\b/i.test(t)) return true;
+    // alternating short tokens (<=3 letters) like 'ha i ha i ha i'
+    if (/\b([a-zäöüß]{1,3})\s+([a-zäöüß]{1,3})(?:\s+\1\s+\2){2,}\b/i.test(t)) return true;
+// contiguous same word 3+ times (e.g., 'hi hi hi')
     if (/\b(\w+)(\s+\1){2,}\b/i.test(t)) return true;
     // any token appears 3+ times overall
     const __tokens = t.split(/\s+/).filter(Boolean);
