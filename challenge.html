@@ -889,5 +889,184 @@ function sendMessage(){
   // Nothing else to do; patterns are active now.
 })();
 </script>
+
+<!-- Categorization active: Rude / Racist / Sexist with obfuscated patterns, censorship, scoring -->
+<script>
+(function(){
+  // ---- DOM ----
+  const chatEl  = document.getElementById('chat') || document.getElementById('chatLog');
+  const msg     = document.getElementById('msg')  || document.getElementById('message') || document.getElementById('userText');
+  let   sendBtn = document.getElementById('send') || document.getElementById('sendBtn') || document.getElementById('submit');
+  const scoreEl = document.getElementById('score') || document.getElementById('points');
+  if (!chatEl || !msg || !sendBtn) return;
+
+  // ---- Scoring ----
+  const SCORE_GOOD = 1;
+  const SCORE_ICH  = 1;
+  const PENALTY_RACIST = 3;
+  const PENALTY_SEXIST = 3;
+  const PENALTY_RUDE   = 2;
+
+  // ---- Helpers ----
+  function addLine(role, text){
+    const wrap = document.createElement('div');
+    wrap.className = 'line ' + (role==='you'?'you':'bot');
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = text;
+    wrap.appendChild(bubble);
+    chatEl.appendChild(wrap);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+  function setScore(v){ if (scoreEl) scoreEl.textContent = String(v); }
+  function escapeRx(s){ return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function isShouting(txt){
+    const letters = (txt.match(/[A-Za-zÄÖÜäöüß]/g) || []).join('');
+    if (letters.length < 5) return false;
+    const upper = letters.replace(/[a-zäöüß]/g, '');
+    return upper.length / letters.length >= 0.7;
+  }
+  function containsAny(text, list){
+    const low = text.toLowerCase();
+    return list.some(w => w && low.includes(w));
+  }
+
+  // ---- Categories ----
+  const GOOD = ["danke","bitte","entschuldigung","sorry","ok","okay","kein problem","gern geschehen","verstanden","einverstanden"];
+
+  // School-safe rude lexicon (mild examples)
+  const BAD_RUDE = ["idiot","dumm","blöd","halt die klappe","nervst","depp","spinner","trottel","noob","blödi","vollpfosten","opfer"];
+
+  // Family terms allowed (only explicit "du ... <term>" constructions penalized as rude)
+  const FAMILY_TERMS = ["sohn","tochter","mutter","vater","papa","mama","oma","opa","bruder","schwester","cousin","cousine","onkel","tante"];
+  const FAMILY_RX = new RegExp("\\b(" + FAMILY_TERMS.join("|") + ")\\b","i");
+  function isFamilyInsult(text){
+    const t = (text||"").toLowerCase();
+    if (!/^\s*du\b/i.test(t)) return false;
+    return FAMILY_RX.test(t);
+  }
+
+  // ---- Obfuscated pattern builder (no explicit words in source) ----
+  function rxWord(charCodes){
+    const letters = charCodes.map(c => String.fromCharCode(c));
+    const parts = letters.map(ch => ch + "[\\W_]*"); // allow separators between letters
+    const core = parts.join("");
+    return new RegExp("\\\\b" + core + "\\\\b", "i");
+  }
+  function rxContext(coreRx){
+    return new RegExp("(?:\\bdu\\b[^\\n\\r]{0,12}|\\bbist\\b[^\\n\\r]{0,12}|\\bso\\s+eine?\\b[^\\n\\r]{0,12})" + coreRx.source, "i");
+  }
+
+  // Global arrays for sensitive categories
+  var OBFUSCATED_RACIST_PATTERNS = window.OBFUSCATED_RACIST_PATTERNS || [];
+  var OBFUSCATED_SEXIST_PATTERNS = window.OBFUSCATED_SEXIST_PATTERNS || [];
+  var OBFUSCATED_HOMOPHOBIC_PATTERNS = window.OBFUSCATED_HOMOPHOBIC_PATTERNS || [];
+  var OBFUSCATED_RUDE_PATTERNS = window.OBFUSCATED_RUDE_PATTERNS || [];
+  window.OBFUSCATED_RACIST_PATTERNS = OBFUSCATED_RACIST_PATTERNS;
+  window.OBFUSCATED_SEXIST_PATTERNS = OBFUSCATED_SEXIST_PATTERNS;
+  window.OBFUSCATED_HOMOPHOBIC_PATTERNS = OBFUSCATED_HOMOPHOBIC_PATTERNS;
+  window.OBFUSCATED_RUDE_PATTERNS = OBFUSCATED_RUDE_PATTERNS;
+
+  // ---- Minimal seed patterns (obfuscated) for your latest tests ----
+  (function(){
+    // Sexist term you tested (obfuscated via char codes)
+    var s1 = rxWord([104,117,114,101]); // h u r e
+    OBFUSCATED_SEXIST_PATTERNS.push(s1, rxContext(s1));
+    // Rude insult you tested (obfuscated)
+    var r1 = rxWord([119,105,99,104,115,101,114]); // w i c h s e r
+    OBFUSCATED_RUDE_PATTERNS.push(r1, rxContext(r1));
+  })();
+
+  // ---- Censorship ----
+  function censorWordList(original, list){
+    let out = original;
+    const sorted = [...list].sort((a,b)=>b.length-a.length);
+    for (const w of sorted){
+      if (!w) continue;
+      const rx = new RegExp(escapeRx(w), 'gi');
+      out = out.replace(rx, m => m.replace(/[^\s]/g, '•'));
+    }
+    return out;
+  }
+  function censorByPatterns(original, patterns){
+    let out = original;
+    for (const rx of patterns){
+      if (!rx || !rx.test) continue;
+      out = out.replace(rx, m => m.replace(/[^\s]/g, '•'));
+    }
+    return out;
+  }
+  function censorTextEnhanced(original){
+    let out = original;
+    out = censorWordList(out, BAD_RUDE);
+    out = censorByPatterns(out, [].concat(
+      OBFUSCATED_RUDE_PATTERNS,
+      OBFUSCATED_SEXIST_PATTERNS,
+      OBFUSCATED_RACIST_PATTERNS,
+      OBFUSCATED_HOMOPHOBIC_PATTERNS
+    ));
+    // keep isolated family words visible
+    try {
+      const tokens = original.split(/(\s+)/);
+      const rebuilt = tokens.map(tok=> /^\s+$/.test(tok) ? tok : (FAMILY_RX.test(tok) ? tok : (out.includes('•') ? tok.replace(/[^\s]/g,'•') : tok)) ).join('');
+      out = rebuilt;
+    } catch(e){}
+    const visible = out.replace(/[•\s]/g,'');
+    return visible ? out : "[Nachricht moderiert]";
+  }
+
+  // ---- Analysis ----
+  function analyzeCore(text){
+    let delta = 0; const notes = [];
+    if (GOOD.some(w => new RegExp('(^|\\b)'+escapeRx(w)+'(\\b|$)','i').test(text))) { delta += SCORE_GOOD; notes.push('👍 höflich'); }
+    if ((/(^|\\s)ich\\s+(finde|fühle|denke|glaube)\\b/i).test(text)) { delta += SCORE_ICH; notes.push('👍 Ich-Botschaft'); }
+
+    if (containsAny(text, BAD_RUDE)) { delta -= PENALTY_RUDE; notes.push('⚠️ unhöflich'); }
+    if ([].concat(OBFUSCATED_RUDE_PATTERNS).some(rx => rx && rx.test && rx.test(text))) { delta -= PENALTY_RUDE; if(!notes.includes('⚠️ unhöflich')) notes.push('⚠️ unhöflich'); }
+    if ([].concat(OBFUSCATED_SEXIST_PATTERNS).some(rx => rx && rx.test && rx.test(text))) { delta -= PENALTY_SEXIST; notes.push('❌ sexistisch'); }
+    if ([].concat(OBFUSCATED_RACIST_PATTERNS).some(rx => rx && rx.test && rx.test(text))) { delta -= PENALTY_RACIST; notes.push('🚫 rassistisch'); }
+    if ([].concat(OBFUSCATED_HOMOPHOBIC_PATTERNS).some(rx => rx && rx.test && rx.test(text))) { delta -= PENALTY_SEXIST; if(!notes.includes('❌ sexistisch')) notes.push('❌ sexistisch'); }
+
+    if (isFamilyInsult(text)) { delta -= PENALTY_RUDE; if(!notes.includes('⚠️ unhöflich')) notes.push('⚠️ unhöflich'); }
+
+    if (/(?:!{3,}|\?{3,})/.test(text)) { delta -= 1; notes.push('⚠️ Satzzeichen-Spam'); }
+    if (/\b(du|ihr)\s+(bist|seid)\s+immer\b/i.test(text)) { delta -= 1; notes.push('⚠️ Unterstellung (immer)'); }
+    if (/\b(du|ihr)\s+(bist|seid)\s+nie\b/i.test(text))   { delta -= 1; notes.push('⚠️ Unterstellung (nie)'); }
+    if (isShouting(text)) { delta -= 1; notes.push('⚠️ Schreien (GROẞ)'); }
+
+    if (/\?$/.test(text) && !isShouting(text)) { delta += 1; notes.push('👍 nachfragen/klären'); }
+
+    if (delta > 3) delta = 3;
+    if (delta < -5) delta = -5;
+    return { delta, notes };
+  }
+
+  // ---- Bind sending (replace/add handler to ensure our categorization runs) ----
+  function handleSendPatched(){
+    const raw = msg.value;
+    const text = (raw||"").trim();
+    if (!text) return;
+    const { delta, notes } = analyzeCore(text);
+    // read current score, if present
+    const current = scoreEl ? parseInt(scoreEl.textContent || "0", 10) || 0 : 0;
+    const next = current + delta;
+    setScore(next);
+
+    const display = censorTextEnhanced(text);
+    addLine('you', display);
+    const tip = notes.length ? notes.join(' · ') : '👍 Danke – sachlich formuliert.';
+    const signed = ` (Score: ${next>=0?'+':''}${next})`;
+    addLine('bot', tip + signed);
+    msg.value=''; msg.focus();
+  }
+
+  // prevent duplicate bindings
+  sendBtn.replaceWith(sendBtn.cloneNode(true));
+  sendBtn = document.getElementById('send') || document.getElementById('sendBtn') || document.getElementById('submit');
+  sendBtn.addEventListener('click', handleSendPatched);
+  msg.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); handleSendPatched(); } });
+
+})();
+</script>
 </body>
 </html>
