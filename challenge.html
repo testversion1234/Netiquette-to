@@ -227,6 +227,26 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
     const reset = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
+  function hasRacistSlur(text) {
+    const t = " " + normText(text) + " ";
+    const re = /\bni+g+([ae]r|a)\b/i; // moderation-only pattern (variants)
+    return re.test(t);
+  }
+
+  function normText(txt) {
+    return (txt || "")
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/[0]/g, "o")
+      .replace(/[1!|]/g, "i")
+      .replace(/@/g, "a")
+      .replace(/\$/g, "s")
+      .replace(/3/g, "e")
+      .replace(/\W+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
         messagesRef.remove();
         roomRef.child('meta/clearedAt').set(firebase.database.ServerValue.TIMESTAMP);
         roomRef.child('meta/cleanupAt').remove();
@@ -435,11 +455,13 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
     return list.some(w => t.includes(" " + w + " "));
   }
 
+  
   function directedSlur(text) {
-    const t = " " + text.toLowerCase() + " ";
-    const pattern = /\bdu\s+(bist\s+)?(homo|lesbe|schwuchtel|transe)\b/i;
+    const t = " " + normText(text) + " ";
+    const pattern = /\bdu\s+(bist\s+)?(homo|lesbe|lespe|schwuchtel|transe)\b/i;
     return pattern.test(t);
   }
+
 
   function analyzeMessage(text) {
     let delta = 0;
