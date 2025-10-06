@@ -605,5 +605,125 @@ function sendMessage(){
 
 })();
 </script>
+
+<!-- Firebase-aware Reset: clears chat DOM, score, leaderboard AND deletes the room in Realtime DB -->
+<script>
+(function(){
+  // --- Helpers to get DOM & room ---
+  const chatEl  = document.getElementById('chat') || document.getElementById('chatLog');
+  const scoreEl = document.getElementById('score') || document.getElementById('points');
+  const sendBtn = document.getElementById('send') || document.getElementById('sendBtn') || document.getElementById('submit');
+  const msg     = document.getElementById('msg')  || document.getElementById('message') || document.getElementById('userText');
+  const roomLabel = document.getElementById('roomLabel');
+
+  if (!chatEl || !sendBtn || !msg) return; // do nothing if markup not present
+
+  function getRoomName(){
+    try{
+      const p = new URLSearchParams(location.search);
+      const q = (p.get('room') || p.get('r') || '').trim();
+      if (q) return q;
+    }catch(e){}
+    return roomLabel ? (roomLabel.textContent || '').trim() : '';
+  }
+
+  function getLeaderboardNode(){
+    return document.getElementById('rangliste')
+        || document.getElementById('leaderboard')
+        || document.getElementById('ranking')
+        || document.querySelector('[data-role="leaderboard"]')
+        || null;
+  }
+
+  // --- Firebase remove that works with modular (v9+) and compat (v8) ---
+  function removePath(path){
+    // Modular API
+    if (typeof window.getDatabase === 'function' && typeof window.ref === 'function'){
+      try{
+        const db = window.getDatabase(window.app || undefined); // use existing app if exported to window
+        const r  = window.ref(db, path);
+        return window.remove(r);
+      }catch(e){ /* fall through to compat */ }
+    }
+    // Compat API
+    if (window.firebase && firebase.database && typeof firebase.database === 'function'){
+      try{
+        return firebase.database().ref(path).remove();
+      }catch(e){ /* ignore */ }
+    }
+    return Promise.reject(new Error('Firebase Database API nicht gefunden'));
+  }
+
+  function wipeRoomInFirebase(room){
+    if (!room) return Promise.resolve();
+    const paths = [
+      `rooms/${room}`,
+      `rooms/${room}/messages`,
+      `rooms/${room}/leaderboard`,
+      `leaderboard/${room}`,
+      `rankings/${room}`,
+      `scores/${room}`
+    ];
+    const jobs = paths.map(p => removePath(p).catch(()=>null));
+    return Promise.allSettled(jobs);
+  }
+
+  // --- Visual clears ---
+  function clearLeaderboardDOM(){
+    const lb = getLeaderboardNode();
+    if (!lb) return;
+    while (lb.firstChild) lb.removeChild(lb.firstChild);
+    const info = document.createElement('div');
+    info.style.opacity = '0.65';
+    info.textContent = '— Rangliste geleert —';
+    lb.appendChild(info);
+  }
+  function clearChatDOM(reason){
+    while (chatEl.firstChild) chatEl.removeChild(chatEl.firstChild);
+    if (scoreEl) scoreEl.textContent = '0';
+    // Bot hint
+    const wrap = document.createElement('div');
+    wrap.className = 'line bot';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = reason || 'Chat wurde zurückgesetzt.';
+    wrap.appendChild(bubble);
+    chatEl.appendChild(wrap);
+    chatEl.scrollTop = chatEl.scrollHeight;
+    clearLeaderboardDOM();
+  }
+
+  // --- Timer hook: expose a function for auto-clear to call ---
+  window.autoRoomClear = function(){
+    const room = getRoomName();
+    wipeRoomInFirebase(room).finally(()=>{
+      clearChatDOM('Chat wurde automatisch geleert (Timer abgelaufen).');
+    });
+  };
+
+  // --- Bind/augment Reset button ---
+  (function attachReset(){
+    const resetCand = document.getElementById('resetChatAll')
+                    || document.getElementById('resetChat')
+                    || document.querySelector('[data-role="reset"]');
+    if (!resetCand) return;
+    const clone = resetCand.cloneNode(true);
+    resetCand.parentNode.replaceChild(clone, resetCand);
+    clone.addEventListener('click', function(){
+      const room = getRoomName();
+      wipeRoomInFirebase(room).finally(()=>{
+        clearChatDOM('Chat & Rangliste wurden zurückgesetzt.');
+      });
+    });
+  })();
+
+  // --- If your existing timer calls some other clear function, patch it to call our autoRoomClear ---
+  if (typeof window.startTimerOnce === 'function' && !window.__patchedAutoClear){
+    window.__patchedAutoClear = true;
+    // Try to monkey-patch a typical interval branch by listening to a custom event:
+    document.addEventListener('autoClearNow', ()=> window.autoRoomClear());
+  }
+})();
+</script>
 </body>
 </html>
