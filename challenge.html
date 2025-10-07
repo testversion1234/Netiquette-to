@@ -336,7 +336,7 @@ function sendMessage(){
   // 1) Block categories BEFORE sending (no Firebase write)
   const cat = classify(t);
   if (!cat.ok){
-    showWarn(chat, `⛔️ Nachricht entfernt – ${cat.category}.`);
+    showWarn(chat, "⚠️ Diese Nachricht wurde entfernt. Bitte achte auf einen respektvollen Umgangston.");
     updateScore(scoreEl, cat.penalty);
     if (isChallenge) bumpScore(nick, cat.penalty);
     if (msg){ msg.value = ''; msg.focus(); }
