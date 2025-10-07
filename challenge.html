@@ -140,6 +140,7 @@ function analyzeMessage(msg){
   const PENALTY_RUDE   = -1;
 
   
+
 function normalize(s){
   if (!s) return "";
   let t = s.toLowerCase();
@@ -152,14 +153,21 @@ function normalize(s){
 }
 function containsAny(text, list){
   const t = normalize(text);
+  const tokens = t.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const set = new Set(tokens);
   for (const raw of list){
     const w = normalize(raw);
-    const esc = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(`(^|[^\p{L}])${esc}(?=$|[^\p{L}])`, 'u');
-    if (re.test(t)) return raw;
+    if (!w) continue;
+    if (w.includes(' ')){
+      const re = new RegExp(`(^|[^\p{L}\p{N}])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^\p{L}\p{N}])`, 'u');
+      if (re.test(t)) return raw;
+    } else {
+      if (set.has(w)) return raw;
+    }
   }
   return null;
 }
+
 
 
   // Ich-Form-Erkennung: enthält Wortgrenze "ich" (deutsch), case-insensitive
