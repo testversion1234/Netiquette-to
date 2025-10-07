@@ -1093,5 +1093,100 @@ function sendMessage(){
 
 })();
 </script>
+
+
+
+<!-- Indexpunktung Inject Start -->
+<script>
+(function(){
+  if (window.__INDEXPUNKTION_INTEGRATED_V2__) return;
+  window.__INDEXPUNKTION_INTEGRATED_V2__ = true;
+
+  // ===== Indexpunktung: Höflichkeit / Unhöflichkeit / Spam (fokussiert) =====
+  const politeTokens = [
+    "bitte","danke","entschuld","könntest du","kannst du","würde","könnte",
+    "ich finde","meiner meinung","sorry","entschuldige","entschuldigung"
+  ];
+
+  function countPolite(text){
+    if (!text) return 0;
+    let c = 0;
+    const low = text.toLowerCase();
+    politeTokens.forEach(tok => { if (low.includes(tok)) c++; });
+    return Math.min(c, 2); // max +2 pro Nachricht
+  }
+
+  function detectSpam(text){
+    if (!text) return { count: 0, types: [] };
+    const types = [];
+    let count = 0;
+    // a) Buchstaben/Symbole aneinandergereiht (>=4 gleiche Zeichen)
+    if (/(.)\1{3,}/.test(text)){ count += 1; types.push("Buchstaben-/Zeichen-Kette"); }
+    // b) gleiches Wort 5× mit Abstand
+    const reRepeatWordSpaced = /\b(\w{1,20})(?:\s+\1){4,}\b/gi;
+    if (reRepeatWordSpaced.test(text)){ count += 1; types.push("Wort-Wiederholung (mit Abstand)"); }
+    // c) gleiches Token 5× ohne Abstand (z. B. lololololol)
+    const reRepeatTokenNoSpace = /\b([A-Za-zÄÖÜäöüß]{1,10})\1{4,}\b/g;
+    if (reRepeatTokenNoSpace.test(text)){ count += 1; types.push("Wort-Wiederholung (ohne Abstand)"); }
+    return { count, types };
+  }
+
+  // ---- Wrap existing analyzeMessage to add Indexpunktung ----
+  const origAnalyze = window.analyzeMessage;
+  window.analyzeMessage = function(msg){
+    const base = (typeof origAnalyze === "function") ? origAnalyze(msg) : { delta: 0, notes: [] };
+    try {
+      const plus = countPolite(msg);
+      if (plus > 0){ base.delta += plus; base.notes.push("👍 Höflichkeit +" + plus); }
+      const spam = detectSpam(msg);
+      if (spam.count > 0){
+        base.delta -= spam.count;
+        base.notes.push("⚠️ Spam " + (spam.types.length? "(" + spam.types.join(", ") + ")":""));
+      }
+    } catch(e){ /* silent */ }
+    if (base.delta > 3) base.delta = 3;
+    if (base.delta < -5) base.delta = -5;
+    return base;
+  };
+
+  // ---- Zensierte Stellen in der letzten User-Nachricht rot hervorheben ----
+  function highlightLastUserMessage(){
+    const chat = document.getElementById('chat') || document.querySelector('#chatbox, .chat, .chat-body') || document.body;
+    const rows = Array.from(chat.querySelectorAll('.row'));
+    for (let i = rows.length - 1; i >= 0; i--){
+      const r = rows[i];
+      let target = r.querySelector('.you') || r.querySelector(':scope > div:not(.bot)') || r;
+      if (!target) continue;
+      const html = target.innerHTML;
+      const replaced = html
+        .replace(/(\S*\*+\S*)/g, "<span style='color:#ef4444;font-weight:700'>$1</span>")
+        .replace(/(\S*•+\S*)/g, "<span style='color:#ef4444;font-weight:700'>$1</span>");
+      if (replaced !== html) target.innerHTML = replaced;
+      break;
+    }
+  }
+
+  function findInput(){ return document.getElementById('msg') || document.querySelector('input[type="text"], textarea'); }
+  function findSendButton(){ return document.getElementById('send') || document.getElementById('sendBtn') || document.querySelector('#send-button, button[type="submit"]'); }
+
+  function attach(){
+    const btn = findSendButton();
+    if (btn && !btn.__idxPatched){
+      btn.addEventListener('click', () => setTimeout(highlightLastUserMessage, 80), true);
+      btn.__idxPatched = true;
+    }
+    const form = findInput() && findInput().form;
+    if (form && !form.__idxPatched){
+      form.addEventListener('submit', () => setTimeout(highlightLastUserMessage, 80), true);
+      form.__idxPatched = true;
+    }
+  }
+
+  const obs = new MutationObserver(attach);
+  obs.observe(document.documentElement, { childList: true, subtree: true });
+  attach();
+})();
+</script>
+<!-- Indexpunktung Inject End -->
 </body>
 </html>
