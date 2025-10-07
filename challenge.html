@@ -92,15 +92,7 @@ function analyzeMessage(msg){
   if (/(kannst du|könntest du|was genau|wie meinst du|würdest du|bitte)/i.test(lower)) { delta += 1; notes.push("✅ Nachfragen erkannt."); }
   if (/(sorry|entschuldigung|tut mir leid|lass uns|sachlich|ruhig|kein problem|klären|lösung)/i.test(lower)) { delta += 1; notes.push("✅ Deeskalation."); }
 
-  (function(){
-      const c = classify(raw);
-      if (!c.ok){
-        delta += c.penalty;
-        const label = (c.category === 'rassistisch') ? 'rassistisch' : (c.category === 'sexistisch' ? 'sexistisch' : 'unhöflich');
-        notes.push(`⛔️ Nachricht entfernt – ${label}.`);
-      }
-    })();
-    return { delta, notes };
+  return { delta, notes };
 }
 
 
@@ -139,36 +131,10 @@ function analyzeMessage(msg){
   const PENALTY_SEXIST = -5;
   const PENALTY_RUDE   = -1;
 
-  
-
-function normalize(s){
-  if (!s) return "";
-  let t = s.toLowerCase();
-  try { t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch(e){}
-  const map = {'0':'o','1':'i','3':'e','4':'a','5':'s','7':'t','8':'b','@':'a','$':'s'};
-  t = t.replace(/[0134578@$]/g, ch => map[ch] || ch);
-  t = t.replace(/[_*~`^´’'"\-]+/g, ' ');
-  t = t.replace(/\s+/g, ' ').trim();
-  return t;
-}
-function containsAny(text, list){
-  const t = normalize(text);
-  const tokens = t.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
-  const set = new Set(tokens);
-  for (const raw of list){
-    const w = normalize(raw);
-    if (!w) continue;
-    if (w.includes(' ')){
-      const re = new RegExp(`(^|[^\p{L}\p{N}])${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[^\p{L}\p{N}])`, 'u');
-      if (re.test(t)) return raw;
-    } else {
-      if (set.has(w)) return raw;
-    }
+  function containsAny(text, list){
+    const t = text.toLowerCase();
+    return list.find(w => t.includes(w));
   }
-  return null;
-}
-
-
 
   // Ich-Form-Erkennung: enthält Wortgrenze "ich" (deutsch), case-insensitive
   function hasIchForm(text){
@@ -363,10 +329,23 @@ const roomBase = 'rooms/' + encodeURIComponent(room);
 
     
 function sendMessage(){
+
   const t = (msg && msg.value || '').trim();
   if (!t) return;
 
+  // 1) Block categories BEFORE sending (no Firebase write)
+  const cat = classify(t);
+  if (!cat.ok){
+    showWarn(chat, `⛔️ Nachricht entfernt – ${cat.category}.`);
+    updateScore(scoreEl, cat.penalty);
+    if (isChallenge) bumpScore(nick, cat.penalty);
+    if (msg){ msg.value = ''; msg.focus(); }
+    return;
+  }
+
+  // 2) Analyze for spam/positiv etc. (does NOT block storage)
   const res = analyzeMessage(t);
+
 
   // Negative -> block & score
   if (res.delta < 0){
@@ -447,7 +426,7 @@ function sendMessage(){
   // GOOD polite markers
   const GOOD = ["danke","bitte","entschuldigung","sorry","kein problem","gern geschehen","ok","okay","verstanden","einverstanden"];
   // Rude/light insults (school-safe examples only; extend privately if needed)
-  const BAD_RUDE = ["fick dich", "idiot","dumm","blöd","halt die klappe","nervst","depp","spinner","trottel","noob","blödi","vollpfosten","opfer"];
+  const BAD_RUDE = ["idiot","dumm","blöd","halt die klappe","nervst","depp","spinner","trottel","noob","blödi","vollpfosten","opfer"];
   // Placeholders for sensitive categories (to be provided privately via patterns)
   const BAD_RACIST = [];  // filled via obfuscated patterns below
   const BAD_SEXIST = [];  // filled via obfuscated patterns below
@@ -557,14 +536,6 @@ function sendMessage(){
     // Clamp
     if (delta > 3) delta = 3;
     if (delta < -5) delta = -5;
-    (function(){
-      const c = classify(raw);
-      if (!c.ok){
-        delta += c.penalty;
-        const label = (c.category === 'rassistisch') ? 'rassistisch' : (c.category === 'sexistisch' ? 'sexistisch' : 'unhöflich');
-        notes.push(`⛔️ Nachricht entfernt – ${label}.`);
-      }
-    })();
     return { delta, notes };
   }
 
@@ -989,7 +960,7 @@ function sendMessage(){
   const GOOD = ["danke","bitte","entschuldigung","sorry","ok","okay","kein problem","gern geschehen","verstanden","einverstanden"];
 
   // School-safe rude lexicon (mild examples)
-  const BAD_RUDE = ["fick dich", "idiot","dumm","blöd","halt die klappe","nervst","depp","spinner","trottel","noob","blödi","vollpfosten","opfer"];
+  const BAD_RUDE = ["idiot","dumm","blöd","halt die klappe","nervst","depp","spinner","trottel","noob","blödi","vollpfosten","opfer"];
 
   // Family terms allowed (only explicit "du ... <term>" constructions penalized as rude)
   const FAMILY_TERMS = ["sohn","tochter","mutter","vater","papa","mama","oma","opa","bruder","schwester","cousin","cousine","onkel","tante"];
@@ -1092,14 +1063,6 @@ function sendMessage(){
 
     if (delta > 3) delta = 3;
     if (delta < -5) delta = -5;
-    (function(){
-      const c = classify(raw);
-      if (!c.ok){
-        delta += c.penalty;
-        const label = (c.category === 'rassistisch') ? 'rassistisch' : (c.category === 'sexistisch' ? 'sexistisch' : 'unhöflich');
-        notes.push(`⛔️ Nachricht entfernt – ${label}.`);
-      }
-    })();
     return { delta, notes };
   }
 
