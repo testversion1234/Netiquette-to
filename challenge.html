@@ -59,14 +59,7 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 <script>
-function analyzeMessage(msg){
-  const notes = [];
-  let delta = 0;
-  const raw = msg || "";
-  const lower = raw.toLowerCase();
-
-  // --- Spam ---
-  if (/(.)\1{3,}/.test(lower)) { delta -= 1; notes.push("⚠️ Bitte keine Buchstaben-Streckung."); }
+/.test(lower)) { delta -= 1; notes.push("⚠️ Bitte keine Buchstaben-Streckung."); }
   if (/\b([\p{L}]{2,3})\b(?:[\s\W]*\1\b){2,}/iu.test(lower)) { delta -= 1; notes.push("⚠️ Bitte keine ständigen Wiederholungen."); }
   if (/([\p{L}]{2,6})\1{2,}/iu.test(lower)) { delta -= 1; notes.push("⚠️ Bitte keine Wiederholung (z.B. NettNettNett)."); }
 
@@ -503,14 +496,7 @@ function sendMessage(){
   }
 
   // ===== Analysis =====
-  function analyzeMessage(msg){
-    const text = (msg||"").trim();
-    let delta = 0;
-    const notes = [];
-
-    // Positive
-    if (GOOD.some(w => new RegExp('(^|\\b)'+escapeRx(w)+'(\\b|$)','i').test(text))) { delta += SCORE_GOOD; notes.push('👍 höflich'); }
-    if ((/(^|\\s)ich\\s+(finde|fühle|denke|glaube)\\b/i).test(text)) { delta += SCORE_ICH; notes.push('👍 Ich-Botschaft'); }
+  if ((/(^|\\s)ich\\s+(finde|fühle|denke|glaube)\\b/i).test(text)) { delta += SCORE_ICH; notes.push('👍 Ich-Botschaft'); }
 
     // Negative by lists
     if (containsAny(text, BAD_RUDE))   { delta -= PENALTY_RUDE;   notes.push('⚠️ unhöflich'); }
@@ -1021,21 +1007,7 @@ function sendMessage(){
     }
     return out;
   }
-  function censorTextEnhanced(original){
-    let out = original;
-    out = censorWordList(out, BAD_RUDE);
-    out = censorByPatterns(out, [].concat(
-      OBFUSCATED_RUDE_PATTERNS,
-      OBFUSCATED_SEXIST_PATTERNS,
-      OBFUSCATED_RACIST_PATTERNS,
-      OBFUSCATED_HOMOPHOBIC_PATTERNS
-    ));
-    // keep isolated family words visible
-    try {
-      const tokens = original.split(/(\s+)/);
-      const rebuilt = tokens.map(tok=> /^\s+$/.test(tok) ? tok : (FAMILY_RX.test(tok) ? tok : (out.includes('•') ? tok.replace(/[^\s]/g,'•') : tok)) ).join('');
-      out = rebuilt;
-    } catch(e){}
+  catch(e){}
     const visible = out.replace(/[•\s]/g,'');
     return visible ? out : "[Nachricht moderiert]";
   }
@@ -1094,103 +1066,125 @@ function sendMessage(){
 })();
 </script>
 
-<!-- Indexpunktung Inject Start -->
+<!-- IndexLogic Merge Inject Start -->
 <script>
 (function(){
-  if (window.__INDEXPUNKTION_V3__) return;
-  window.__INDEXPUNKTION_V3__ = true;
+  if (window.__INDEX_LOGIC_MERGED__) return;
+  window.__INDEX_LOGIC_MERGED__ = true;
 
-  // ===== Polite tokens =====
-  const POLITE = ["bitte","danke","entschuld","könntest du","kannst du","würde","könnte","ich finde","meiner meinung","sorry","entschuldige","entschuldigung"];
+  // ===== Wortlisten (erweitert) =====
+  // Hinweis: Kategorien dienen der pädagogischen Rückmeldung und Punktvergabe.
+  const POLITE = [
+    "bitte","danke","entschuld","könntest du","kannst du","würde","könnte",
+    "ich finde","meiner meinung","sorry","entschuldige","entschuldigung"
+  ];
 
-  // ===== Swear lists by category (simplified, index-like) =====
-  const RUDE = ["scheiss","scheiße","scheisse","arsch","arschloch","miststück","idiot","depp","wichser","hure","fotze","fick","ficken"];
-  const SEXIST = ["schlampe","hure","fotze","opfer"]; // exemplarisch
-  const RACIST = ["kanake","neger","mongo","zigeuner"];
-  const HOMOPHOBIC = ["schwuchtel","transe","tunte"];
+  // Unhöflich/vulgär (allgemein)
+  const RUDE = [
+    "scheiss","scheiße","scheisse","arsch","arschloch","miststück","idiot","depp",
+    "wichser","hure","fotze","fick","ficken","hurensohn","missgeburt","penner","opfer"
+  ];
+  // Sexistisch
+  const SEXIST = [
+    "schlampe","hure","fotze"
+  ];
+  // Rassistisch
+  const RACIST = [
+    "kanake","neger","mongo","zigeuner"
+  ];
+  // Homophob
+  const HOMOPHOBIC = [
+    "schwuchtel","transe","tunte"
+  ];
 
-  // Obfuscated/variants (basic spacing variants)
-  const patternize = (w) => new RegExp(w.split("").map(ch => (/[a-zA-ZäöüÄÖÜß]/.test(ch)? ch + "\\s*": ch)).join(""), "i");
+  // Utility: optional spaces / Trennzeichen zwischen Buchstaben erlauben
+  function patternize(word){
+    const chars = word.split("").map(ch => {
+      if (/[a-zA-ZäöüÄÖÜß]/.test(ch)) return ch + "[\\s._-]*";
+      return ch.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&");
+    });
+    const re = chars.join("");
+    return new RegExp(re, "i");
+  }
 
-  const RUDE_PATTERNS = RUDE.map(patternize);
-  const SEXIST_PATTERNS = SEXIST.map(patternize);
-  const RACIST_PATTERNS = RACIST.map(patternize);
-  const HOMO_PATTERNS = HOMOPHOBIC.map(patternize);
+  const RUDE_PATTERNS  = RUDE.map(patternize);
+  const SEX_PATTERNS   = SEXIST.map(patternize);
+  const RAC_PATTERNS   = RACIST.map(patternize);
+  const HOMO_PATTERNS  = HOMOPHOBIC.map(patternize);
 
-  // ===== Spam detection (as requested) =====
+  // ===== Spam-Erkennung (ohne Doppelkonsonanten) =====
   function detectSpam(text){
     if (!text) return { count: 0, types: [] };
     let count = 0; const types = [];
+    // a) Zeichenketten (>=4 identische nacheinander)
     if (/(.)\1{3,}/.test(text)) { count++; types.push("Buchstaben-/Zeichen-Kette"); }
+    // b) Wortwiederholung mit Abstand (>=5)
     if (/\b(\w{1,20})(?:\s+\1){4,}\b/i.test(text)) { count++; types.push("Wort-Wiederholung (mit Abstand)"); }
+    // c) Wortwiederholung ohne Abstand (>=5)
     if (/\b([A-Za-zÄÖÜäöüß]{1,10})\1{4,}\b/.test(text)) { count++; types.push("Wort-Wiederholung (ohne Abstand)"); }
     return { count, types };
   }
 
-  // ===== Censoring =====
+  // ===== Maskierung (Sternchen), Darstellung bleibt im Challenge-Layout =====
   function maskWord(w){ if (!w) return w; if (w.length <= 2) return "*".repeat(w.length); return w[0] + "*".repeat(w.length-1); }
   function maskSegmentKeepingSpaces(seg){ return seg.replace(/\S+/g, (word) => maskWord(word)); }
 
-  // Override/define censorTextEnhanced so challenge UI uses the stronger masking
-  const _oldCensor = window.censorTextEnhanced;
+  // Neue, stärkere Zensur – ersetzt die Challenge-Variante
   window.censorTextEnhanced = function(text){
-    let out = (typeof _oldCensor === "function") ? _oldCensor(text) : String(text || "");
-    try {
-      // Mask category patterns
-      const allPats = [...RUDE_PATTERNS, ...SEXIST_PATTERNS, ...RACIST_PATTERNS, ...HOMO_PATTERNS];
-      for (const re of allPats){
-        out = out.replace(re, (m) => maskSegmentKeepingSpaces(m));
-      }
-    } catch(e){ /* noop */ }
+    let out = String(text || "");
+    const all = [...RUDE_PATTERNS, ...SEX_PATTERNS, ...RAC_PATTERNS, ...HOMO_PATTERNS];
+    for (const re of all){
+      out = out.replace(re, m => maskSegmentKeepingSpaces(m));
+    }
     return out;
   };
 
-  // ===== Analyzer wrapper =====
-  const origAnalyze = window.analyzeMessage;
+  // ===== Index-Style Analyzer =====
   window.analyzeMessage = function(msg){
-    const base = (typeof origAnalyze === "function") ? origAnalyze(msg) : { delta: 0, notes: [] };
-    const lower = (msg || "").toLowerCase();
-    try{
-      // Polite bonus (cap +2)
-      let polite = 0;
-      for (const t of POLITE){ if (lower.includes(t)) polite++; }
-      if (polite > 2) polite = 2;
-      if (polite > 0){ base.delta += polite; base.notes.push("✅ Höfliche Formulierung +" + polite); }
+    const notes = [];
+    let delta = 0;
+    const low = (msg || "").toLowerCase();
 
-      // Spam
-      const spam = detectSpam(msg || "");
-      if (spam.count > 0){
-        base.delta -= spam.count;
-        base.notes.push("⚠️ Spam " + (spam.types.length? "(" + spam.types.join(", ") + ")":"") + " -" + spam.count);
-      }
+    // 1) Höflichkeit (Bonus, max +2)
+    let polite = 0;
+    for (const t of POLITE){ if (low.includes(t)) polite++; }
+    if (polite > 2) polite = 2;
+    if (polite > 0){ delta += polite; notes.push("✅ Höfliche Formulierung +" + polite); }
 
-      // Categories
-      let rudeC=0, sexC=0, racC=0, homoC=0;
+    // 2) Spam (Warnung & leichter Abzug)
+    const spam = detectSpam(msg || "");
+    if (spam.count > 0){
+      delta -= spam.count;
+      notes.push("⚠️ Spam erkannt" + (spam.types.length ? " ("+spam.types.join(", ")+")" : "") + " -" + spam.count);
+    }
 
-      for (const re of RUDE_PATTERNS){ if (re.test(msg)) rudeC++; }
-      for (const re of SEXIST_PATTERNS){ if (re.test(msg)) sexC++; }
-      for (const re of RACIST_PATTERNS){ if (re.test(msg)) racC++; }
-      for (const re of HOMO_PATTERNS){ if (re.test(msg)) homoC++; }
+    // 3) Schimpfwort-Kategorien (härter gewichtet)
+    let rudeC=0, sexC=0, racC=0, homoC=0;
 
-      if (rudeC > 0){ base.delta -= rudeC; base.notes.push("⚠️ Unhöfliche/vulgäre Sprache -" + rudeC); }
-      if (sexC  > 0){ base.delta -= (2*sexC); base.notes.push("⚠️ Sexistische Sprache -" + (2*sexC)); }
-      if (racC  > 0){ base.delta -= (2*racC); base.notes.push("⚠️ Rassistische Sprache -" + (2*racC)); }
-      if (homoC > 0){ base.delta -= (2*homoC); base.notes.push("⚠️ Homophobe Sprache -" + (2*homoC)); }
+    for (const re of RUDE_PATTERNS){ if (re.test(msg)) rudeC++; }
+    for (const re of SEX_PATTERNS){ if (re.test(msg)) sexC++; }
+    for (const re of RAC_PATTERNS){ if (re.test(msg)) racC++; }
+    for (const re of HOMO_PATTERNS){ if (re.test(msg)) homoC++; }
 
-      // Gentle caps
-      if (base.delta > 3) base.delta = 3;
-      if (base.delta < -8) base.delta = -8;
+    if (rudeC > 0){ delta -= rudeC; notes.push("⚠️ Unhöfliche/vulgäre Sprache -" + rudeC); }
+    if (sexC  > 0){ delta -= (2*sexC); notes.push("⚠️ Sexistische Sprache -" + (2*sexC)); }
+    if (racC  > 0){ delta -= (2*racC); notes.push("⚠️ Rassistische Sprache -" + (2*racC)); }
+    if (homoC > 0){ delta -= (2*homoC); notes.push("⚠️ Homophobe Sprache -" + (2*homoC)); }
 
-    } catch(e){ /* noop */ }
-    return base;
+    // Sanfte Kappung (Challenge-kompatibel)
+    if (delta > 5)  delta = 5;
+    if (delta < -10) delta = -10;
+
+    return { delta, notes };
   };
 
-  // ===== Red highlight of masked parts (after send) =====
-  function highlightLastYou(){
+  // ===== Rot-Markierung der maskierten Teile nach dem Senden =====
+  function highlightLastUserMessage(){
     const chat = document.getElementById('chat') || document.querySelector('#chatbox, .chat, .chat-body') || document.body;
     const rows = Array.from(chat.querySelectorAll('.row'));
     for (let i = rows.length - 1; i >= 0; i--){
       const r = rows[i];
+      // 'you' oder erste nicht-bot Zelle
       let target = r.querySelector('.you') || r.querySelector(':scope > div:not(.bot)') || r;
       if (!target) continue;
       const html = target.innerHTML;
@@ -1200,20 +1194,20 @@ function sendMessage(){
     }
   }
 
-  function findInput(){ return document.getElementById('msg') || document.querySelector('input[type="text"], textarea'); }
-  function findSendButton(){ return document.getElementById('send') || document.getElementById('sendBtn') || document.querySelector('#send-button, button[type="submit"]'); }
+  function findInput(){ return document.getElementById('msg') || document.querySelector('input[type=\"text\"], textarea'); }
+  function findSendButton(){ return document.getElementById('send') || document.getElementById('sendBtn') || document.querySelector('#send-button, button[type=\"submit\"]'); }
 
   function attach(){
     const btn = findSendButton();
-    if (btn && !btn.__idxV3){
-      btn.addEventListener('click', () => setTimeout(highlightLastYou, 80), true);
-      btn.__idxV3 = true;
+    if (btn && !btn.__idxMerge){
+      btn.addEventListener('click', () => setTimeout(highlightLastUserMessage, 80), true);
+      btn.__idxMerge = true;
     }
     const input = findInput();
     const form = input && input.form;
-    if (form && !form.__idxV3){
-      form.addEventListener('submit', () => setTimeout(highlightLastYou, 80), true);
-      form.__idxV3 = true;
+    if (form && !form.__idxMerge){
+      form.addEventListener('submit', () => setTimeout(highlightLastUserMessage, 80), true);
+      form.__idxMerge = true;
     }
   }
   const obs = new MutationObserver(attach);
@@ -1221,6 +1215,6 @@ function sendMessage(){
   attach();
 })();
 </script>
-<!-- Indexpunktung Inject End -->
+<!-- IndexLogic Merge Inject End -->
 </body>
 </html>
