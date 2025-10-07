@@ -1094,63 +1094,99 @@ function sendMessage(){
 })();
 </script>
 
-
-
 <!-- Indexpunktung Inject Start -->
 <script>
 (function(){
-  if (window.__INDEXPUNKTION_INTEGRATED_V2__) return;
-  window.__INDEXPUNKTION_INTEGRATED_V2__ = true;
+  if (window.__INDEXPUNKTION_V3__) return;
+  window.__INDEXPUNKTION_V3__ = true;
 
-  // ===== Indexpunktung: Höflichkeit / Unhöflichkeit / Spam (fokussiert) =====
-  const politeTokens = [
-    "bitte","danke","entschuld","könntest du","kannst du","würde","könnte",
-    "ich finde","meiner meinung","sorry","entschuldige","entschuldigung"
-  ];
+  // ===== Polite tokens =====
+  const POLITE = ["bitte","danke","entschuld","könntest du","kannst du","würde","könnte","ich finde","meiner meinung","sorry","entschuldige","entschuldigung"];
 
-  function countPolite(text){
-    if (!text) return 0;
-    let c = 0;
-    const low = text.toLowerCase();
-    politeTokens.forEach(tok => { if (low.includes(tok)) c++; });
-    return Math.min(c, 2); // max +2 pro Nachricht
-  }
+  // ===== Swear lists by category (simplified, index-like) =====
+  const RUDE = ["scheiss","scheiße","scheisse","arsch","arschloch","miststück","idiot","depp","wichser","hure","fotze","fick","ficken"];
+  const SEXIST = ["schlampe","hure","fotze","opfer"]; // exemplarisch
+  const RACIST = ["kanake","neger","mongo","zigeuner"];
+  const HOMOPHOBIC = ["schwuchtel","transe","tunte"];
 
+  // Obfuscated/variants (basic spacing variants)
+  const patternize = (w) => new RegExp(w.split("").map(ch => (/[a-zA-ZäöüÄÖÜß]/.test(ch)? ch + "\\s*": ch)).join(""), "i");
+
+  const RUDE_PATTERNS = RUDE.map(patternize);
+  const SEXIST_PATTERNS = SEXIST.map(patternize);
+  const RACIST_PATTERNS = RACIST.map(patternize);
+  const HOMO_PATTERNS = HOMOPHOBIC.map(patternize);
+
+  // ===== Spam detection (as requested) =====
   function detectSpam(text){
     if (!text) return { count: 0, types: [] };
-    const types = [];
-    let count = 0;
-    // a) Buchstaben/Symbole aneinandergereiht (>=4 gleiche Zeichen)
-    if (/(.)\1{3,}/.test(text)){ count += 1; types.push("Buchstaben-/Zeichen-Kette"); }
-    // b) gleiches Wort 5× mit Abstand
-    const reRepeatWordSpaced = /\b(\w{1,20})(?:\s+\1){4,}\b/gi;
-    if (reRepeatWordSpaced.test(text)){ count += 1; types.push("Wort-Wiederholung (mit Abstand)"); }
-    // c) gleiches Token 5× ohne Abstand (z. B. lololololol)
-    const reRepeatTokenNoSpace = /\b([A-Za-zÄÖÜäöüß]{1,10})\1{4,}\b/g;
-    if (reRepeatTokenNoSpace.test(text)){ count += 1; types.push("Wort-Wiederholung (ohne Abstand)"); }
+    let count = 0; const types = [];
+    if (/(.)\1{3,}/.test(text)) { count++; types.push("Buchstaben-/Zeichen-Kette"); }
+    if (/\b(\w{1,20})(?:\s+\1){4,}\b/i.test(text)) { count++; types.push("Wort-Wiederholung (mit Abstand)"); }
+    if (/\b([A-Za-zÄÖÜäöüß]{1,10})\1{4,}\b/.test(text)) { count++; types.push("Wort-Wiederholung (ohne Abstand)"); }
     return { count, types };
   }
 
-  // ---- Wrap existing analyzeMessage to add Indexpunktung ----
+  // ===== Censoring =====
+  function maskWord(w){ if (!w) return w; if (w.length <= 2) return "*".repeat(w.length); return w[0] + "*".repeat(w.length-1); }
+  function maskSegmentKeepingSpaces(seg){ return seg.replace(/\S+/g, (word) => maskWord(word)); }
+
+  // Override/define censorTextEnhanced so challenge UI uses the stronger masking
+  const _oldCensor = window.censorTextEnhanced;
+  window.censorTextEnhanced = function(text){
+    let out = (typeof _oldCensor === "function") ? _oldCensor(text) : String(text || "");
+    try {
+      // Mask category patterns
+      const allPats = [...RUDE_PATTERNS, ...SEXIST_PATTERNS, ...RACIST_PATTERNS, ...HOMO_PATTERNS];
+      for (const re of allPats){
+        out = out.replace(re, (m) => maskSegmentKeepingSpaces(m));
+      }
+    } catch(e){ /* noop */ }
+    return out;
+  };
+
+  // ===== Analyzer wrapper =====
   const origAnalyze = window.analyzeMessage;
   window.analyzeMessage = function(msg){
     const base = (typeof origAnalyze === "function") ? origAnalyze(msg) : { delta: 0, notes: [] };
-    try {
-      const plus = countPolite(msg);
-      if (plus > 0){ base.delta += plus; base.notes.push("👍 Höflichkeit +" + plus); }
-      const spam = detectSpam(msg);
+    const lower = (msg || "").toLowerCase();
+    try{
+      // Polite bonus (cap +2)
+      let polite = 0;
+      for (const t of POLITE){ if (lower.includes(t)) polite++; }
+      if (polite > 2) polite = 2;
+      if (polite > 0){ base.delta += polite; base.notes.push("✅ Höfliche Formulierung +" + polite); }
+
+      // Spam
+      const spam = detectSpam(msg || "");
       if (spam.count > 0){
         base.delta -= spam.count;
-        base.notes.push("⚠️ Spam " + (spam.types.length? "(" + spam.types.join(", ") + ")":""));
+        base.notes.push("⚠️ Spam " + (spam.types.length? "(" + spam.types.join(", ") + ")":"") + " -" + spam.count);
       }
-    } catch(e){ /* silent */ }
-    if (base.delta > 3) base.delta = 3;
-    if (base.delta < -5) base.delta = -5;
+
+      // Categories
+      let rudeC=0, sexC=0, racC=0, homoC=0;
+
+      for (const re of RUDE_PATTERNS){ if (re.test(msg)) rudeC++; }
+      for (const re of SEXIST_PATTERNS){ if (re.test(msg)) sexC++; }
+      for (const re of RACIST_PATTERNS){ if (re.test(msg)) racC++; }
+      for (const re of HOMO_PATTERNS){ if (re.test(msg)) homoC++; }
+
+      if (rudeC > 0){ base.delta -= rudeC; base.notes.push("⚠️ Unhöfliche/vulgäre Sprache -" + rudeC); }
+      if (sexC  > 0){ base.delta -= (2*sexC); base.notes.push("⚠️ Sexistische Sprache -" + (2*sexC)); }
+      if (racC  > 0){ base.delta -= (2*racC); base.notes.push("⚠️ Rassistische Sprache -" + (2*racC)); }
+      if (homoC > 0){ base.delta -= (2*homoC); base.notes.push("⚠️ Homophobe Sprache -" + (2*homoC)); }
+
+      // Gentle caps
+      if (base.delta > 3) base.delta = 3;
+      if (base.delta < -8) base.delta = -8;
+
+    } catch(e){ /* noop */ }
     return base;
   };
 
-  // ---- Zensierte Stellen in der letzten User-Nachricht rot hervorheben ----
-  function highlightLastUserMessage(){
+  // ===== Red highlight of masked parts (after send) =====
+  function highlightLastYou(){
     const chat = document.getElementById('chat') || document.querySelector('#chatbox, .chat, .chat-body') || document.body;
     const rows = Array.from(chat.querySelectorAll('.row'));
     for (let i = rows.length - 1; i >= 0; i--){
@@ -1158,9 +1194,7 @@ function sendMessage(){
       let target = r.querySelector('.you') || r.querySelector(':scope > div:not(.bot)') || r;
       if (!target) continue;
       const html = target.innerHTML;
-      const replaced = html
-        .replace(/(\S*\*+\S*)/g, "<span style='color:#ef4444;font-weight:700'>$1</span>")
-        .replace(/(\S*•+\S*)/g, "<span style='color:#ef4444;font-weight:700'>$1</span>");
+      const replaced = html.replace(/(\S*\*+\S*)/g, "<span style='color:#ef4444;font-weight:700'>$1</span>");
       if (replaced !== html) target.innerHTML = replaced;
       break;
     }
@@ -1171,17 +1205,17 @@ function sendMessage(){
 
   function attach(){
     const btn = findSendButton();
-    if (btn && !btn.__idxPatched){
-      btn.addEventListener('click', () => setTimeout(highlightLastUserMessage, 80), true);
-      btn.__idxPatched = true;
+    if (btn && !btn.__idxV3){
+      btn.addEventListener('click', () => setTimeout(highlightLastYou, 80), true);
+      btn.__idxV3 = true;
     }
-    const form = findInput() && findInput().form;
-    if (form && !form.__idxPatched){
-      form.addEventListener('submit', () => setTimeout(highlightLastUserMessage, 80), true);
-      form.__idxPatched = true;
+    const input = findInput();
+    const form = input && input.form;
+    if (form && !form.__idxV3){
+      form.addEventListener('submit', () => setTimeout(highlightLastYou, 80), true);
+      form.__idxV3 = true;
     }
   }
-
   const obs = new MutationObserver(attach);
   obs.observe(document.documentElement, { childList: true, subtree: true });
   attach();
