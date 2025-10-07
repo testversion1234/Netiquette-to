@@ -587,7 +587,7 @@ function sendMessage(){
       if (remaining <= 0){
         clearInterval(ticking); ticking = null;
         updateCountdown();
-        clearChat('Chat wurde automatisch geleert (Timer abgelaufen).');
+        (window.autoRoomClear ? window.autoRoomClear() : clearChat('Chat wurde automatisch geleert (Timer abgelaufen).'));
         started = false;
       } else {
         updateCountdown();
@@ -597,7 +597,7 @@ function sendMessage(){
   resetBtn.addEventListener('click', ()=>{
     if (ticking) { clearInterval(ticking); ticking = null; }
     remaining = DURATION; started = false; updateCountdown();
-    clearChat('Chat wurde zurückgesetzt.');
+    (window.fullReset ? window.fullReset('Chat & Rangliste wurden zurückgesetzt.') : clearChat('Chat wurde zurückgesetzt.'));
   });
   sendBtn.addEventListener('click', startOnce);
   msg.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey) startOnce(); });
