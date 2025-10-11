@@ -1095,10 +1095,176 @@ function __nc_addBotLineTop(text) {
   }
 })();
 /* === /Scoring & Ranking === */
+</script><script>
+/* === Final Harden: chat, scoring, ranking (no layout change) === */
+(function(){
+  // Known project constants (safe to repeat)
+  window.SUPABASE_URL  = window.SUPABASE_URL  || "https://rombbbbnfngxwwhzmwjo.supabase.co";
+  window.SUPABASE_ANON = window.SUPABASE_ANON || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvbWJiYmJuZm5neHd3aHptd2pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAxNjA4NTcsImV4cCI6MjA3NTczNjg1N30.HJTNIvcROzQn-nk2Z_CNNL3VL1zl96b8Zd8SglxU87I";
+
+  if (!window.supabase) { console.warn("[Final] supabase-js not loaded"); return; }
+  const sb = window._sb || (window._sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON));
+
+  // Elements
+  const CHAT  = document.getElementById('chat') || document.getElementById('chatbox') || document.querySelector('.chat-body') || document.querySelector('main') || document.body;
+  const INPUT = document.getElementById('userText') || document.querySelector('input[type="text"], textarea');
+  let   SEND  = document.getElementById('sendBtn') || document.getElementById('send') || document.getElementById('send-button') ||
+                document.querySelector('button[type="submit"]') || Array.from(document.querySelectorAll('button')).find(b=>/send|senden|absenden/i.test(b.textContent||""));
+  if (!CHAT || !INPUT || !SEND) { console.warn("[Final] missing essential elements"); return; }
+
+  const P = new URLSearchParams(location.search);
+  const CLS  = P.get('cls')  || 'default';
+  const NICK = P.get('nick') || 'Gast';
+
+  // UI helpers
+  function addRow(text, who){
+    const r = document.createElement('div'); r.className = 'row';
+    const b = document.createElement('div'); b.className = who || 'you'; b.textContent = text;
+    r.appendChild(b); CHAT.appendChild(r); CHAT.scrollTop = CHAT.scrollHeight; return r;
+  }
+  function addBot(t){ addRow(t, 'bot'); }
+  function updateMyScore(delta){
+    // UI "Mein Score"
+    const scoreSpan = document.getElementById('score');
+    if (scoreSpan){
+      const cur = Number(scoreSpan.textContent || 0);
+      scoreSpan.textContent = String(Math.max(0, cur + Number(delta||0)));
+    }
+  }
+
+  // Word lists fallback (extend if missing)
+  window.BAD_RACIST = Array.isArray(window.BAD_RACIST) ? window.BAD_RACIST : [];
+  window.BAD_SEXIST = Array.isArray(window.BAD_SEXIST) ? window.BAD_SEXIST : [];
+  window.HOMOPHOB   = Array.isArray(window.HOMOPHOB)   ? window.HOMOPHOB   : [];
+  window.BAD_RUDE   = Array.isArray(window.BAD_RUDE)   ? window.BAD_RUDE   : [];
+  ['hure','hurensohn','fotze','bitch'].forEach(w=>{ if(!window.BAD_SEXIST.includes(w)) window.BAD_SEXIST.push(w); });
+  ['lesbe','lesbisch','schwuchtel','homo'].forEach(w=>{ if(!window.HOMOPHOB.includes(w)) window.HOMOPHOB.push(w); });
+  ['arsch','arschloch','depp','idiot','scheiße','scheisse','spasti','trottel','fick','ficken','fickt','fickst','fickte','gefickt','fick dich','fickdich'].forEach(w=>{ if(!window.BAD_RUDE.includes(w)) window.BAD_RUDE.push(w); });
+
+  function isMatch(list, msg){
+    const L = (msg||'').toLowerCase();
+    return (list||[]).some(w => {
+      if (!w) return false;
+      const s = String(w).toLowerCase();
+      if (s==='fick dich') return /\bfick\s*dich\b/.test(L);
+      return L.includes(s);
+    });
+  }
+  function analyzeScore(text){
+    // negatives first
+    if (isMatch([].concat(window.BAD_RACIST, window.BAD_SEXIST, window.HOMOPHOB), text)) return { bad:true,  delta:-2, note:'⚠️ Rassistische/sexistische Sprache (-2).' };
+    if (isMatch(window.BAD_RUDE, text))                                             return { bad:true,  delta:-1, note:'⚠️ Unhöfliche Sprache (-1).' };
+    // positives
+    const L = String(text||'').trim().toLowerCase();
+    if (/^ich\b/.test(L))                                                            return { bad:false, delta:+2, note:'👍 Ich-Form (+2).' };
+    if (/\b(bitte|danke|könntest|könnten|würdest du|würdest|würde|entschuldigung|entschuldige)\b/.test(L))
+                                                                                     return { bad:false, delta:+1, note:'🙂 Höfliche Form (+1).' };
+    return { bad:false, delta:0, note:'' };
+  }
+
+  // Scores
+  async function upsertScore(nick, delta){
+    if (!delta) return;
+    try {
+      const { data, error } = await sb.from('scores').select('score').eq('cls', CLS).eq('nick', nick).single();
+      let cur = (!error && data && typeof data.score==='number') ? data.score : 0;
+      const next = Math.max(0, cur + delta);
+      await sb.from('scores').upsert({ cls: CLS, nick, score: next }).select();
+    } catch(e){ console.warn('[Final] upsertScore', e); }
+  }
+  async function loadScores(){
+    try{
+      const { data, error } = await sb.from('scores').select('nick,score').eq('cls', CLS);
+      if (error) { console.warn(error); return; }
+      const map = {}; (data||[]).forEach(r => map[r.nick] = r.score||0);
+      const tbody = document.getElementById('rankingBody'); if (!tbody) return;
+      const rows = Object.keys(map).map(name=>({name, score:map[name]})).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name));
+      tbody.innerHTML = "";
+      rows.forEach((r,i)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td style="padding:4px">${i+1}</td><td style="padding:4px">${r.name}</td><td style="padding:4px;font-weight:700">${r.score}</td>`;
+        tbody.appendChild(tr);
+      });
+      const title = document.getElementById('rankingTitle'); if (title) title.textContent = `Rangliste (${CLS})`;
+    }catch(e){ console.warn(e); }
+  }
+  function subscribeScores(){
+    try {
+      sb.channel('rank-final:'+CLS)
+        .on('postgres_changes', { event:'*', schema:'public', table:'scores', filter: 'cls=eq.'+CLS }, _ => loadScores())
+        .subscribe();
+    } catch(e){ console.warn('[Final] subscribeScores', e); }
+  }
+
+  // Messages
+  let lastTs = null;
+  const seen = new Set();
+  function renderMsg(row){
+    if (!row) return;
+    if (row.id && seen.has(row.id)) return;
+    seen.add(row.id || (row.nick+row.body+row.ts));
+    addRow(`${row.nick}: ${row.body}`, 'you');
+    if (!lastTs || row.ts > lastTs) lastTs = row.ts;
+  }
+  async function loadHistory(){
+    try{
+      const { data, error } = await sb.from('messages').select('id,cls,nick,body,ts').eq('cls', CLS).order('ts', { ascending:true }).limit(100);
+      if (error) { console.warn(error); return; }
+      (data||[]).forEach(renderMsg);
+    }catch(e){ console.warn(e); }
+  }
+  function subscribeMessages(){
+    try {
+      sb.channel('room-final:'+CLS)
+        .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter: 'cls=eq.'+CLS }, payload => {
+          renderMsg(payload.new);
+        })
+        .subscribe();
+    } catch(e){ console.warn('[Final] subscribeMessages', e); }
+  }
+  // Polling fallback (2s) in case Realtime is off
+  setInterval(async function(){
+    try{
+      const { data, error } = await sb.from('messages').select('id,cls,nick,body,ts').eq('cls', CLS).gt('ts', lastTs || '1970-01-01').order('ts', { ascending:true }).limit(100);
+      if (!error) (data||[]).forEach(renderMsg);
+    }catch(e){}
+  }, 2000);
+
+  // Sending
+  async function sendNow(){
+    const text = (INPUT.value||'').trim();
+    if (!text) return;
+    const res = analyzeScore(text);
+
+    if (res.bad){
+      addRow('⛔ Nachricht verborgen (unangemessene Sprache)', 'you');
+      addBot(res.note || '⚠️ Bitte respektvoll formulieren.');
+      updateMyScore(res.delta); upsertScore(NICK, res.delta);
+      INPUT.value=""; INPUT.focus(); return;
+    }
+    // Positive/neutral: show local, persist, score
+    const local = { id: 'local-'+Date.now(), cls: CLS, nick: NICK, body: text, ts: new Date().toISOString() };
+    renderMsg(local);
+    try{
+      const { data, error } = await sb.from('messages').insert([{ cls: CLS, nick: NICK, body: text }]).select('id,ts').single();
+      if (!error && data) { local.id = data.id; local.ts = data.ts; }
+    }catch(e){}
+    updateMyScore(res.delta); upsertScore(NICK, res.delta);
+    INPUT.value=""; INPUT.focus();
+  }
+
+  // Rebind button/enter cleanly
+  try { const clone = SEND.cloneNode(true); SEND.parentNode.replaceChild(clone, SEND); SEND = clone; } catch(e){}
+  SEND.addEventListener('click', sendNow);
+  INPUT.addEventListener('keydown', e => { if (e.key === 'Enter') sendNow(); });
+
+  // Init
+  loadHistory(); subscribeMessages(); loadScores(); subscribeScores();
+  console.log("[Final] initialized", {CLS, NICK});
+})();
+/* === /Final Harden === */
 </script></body>
 </html>
-
-
 <script>
 /* === Fix Pack: robust send+score + stronger moderation === */
 (function(){
@@ -1240,5 +1406,145 @@ function __nc_addBotLineTop(text) {
   }
 
   console.log('[FixPack] send+score+moderation wiring active.');
+})();
+</script>
+<script>
+/* === Fix v2: reliable +scoring & realtime === */
+(function(){
+  // Locate elements (no layout change)
+  function $(sel){ return document.querySelector(sel); }
+  var CHAT  = document.getElementById('chat') || document.getElementById('chatbox') || document.querySelector('.chat-body') || document.querySelector('main') || document.body;
+  var INPUT = document.getElementById('userText') || document.querySelector('input[type="text"], textarea');
+  var SEND  = document.getElementById('sendBtn') || document.getElementById('send') || document.getElementById('send-button') || document.querySelector('button[type="submit"]') || (function(){ var b=[...document.querySelectorAll('button')].find(b=>/send|senden|absenden/i.test(b.textContent||"")); return b||null; })();
+  if (!CHAT || !INPUT || !SEND){ console.warn('[Fix v2] missing essential elements'); return; }
+
+  // URL params
+  var P = new URLSearchParams(location.search);
+  var CLS = P.get('cls') || 'default';
+  var NICK = P.get('nick') || 'Gast';
+
+  // Render helpers
+  function addRow(text, cls){
+    var r = document.createElement('div'); r.className='row';
+    var b = document.createElement('div'); b.className=cls||'you'; b.textContent=text;
+    r.appendChild(b); CHAT.appendChild(r); CHAT.scrollTop = CHAT.scrollHeight;
+    return r;
+  }
+  function addBot(t){ addRow(t,'bot'); }
+
+  // Strengthened positive/negative analyzer (wraps existing)
+  var _prevAnalyze = (typeof window.analyze === 'function') ? window.analyze : null;
+  // Ensure lists exist (fallbacks)
+  window.BAD_RACIST = Array.isArray(window.BAD_RACIST) ? window.BAD_RACIST : [];
+  window.BAD_SEXIST = Array.isArray(window.BAD_SEXIST) ? window.BAD_SEXIST : [];
+  window.HOMOPHOB   = Array.isArray(window.HOMOPHOB)   ? window.HOMOPHOB   : [];
+  window.BAD_RUDE   = Array.isArray(window.BAD_RUDE)   ? window.BAD_RUDE   : [];
+  ['hure','hurensohn','fotze','bitch'].forEach(w=>{ if(!window.BAD_SEXIST.includes(w)) window.BAD_SEXIST.push(w); });
+  ['lesbe','lesbisch','schwuchtel','homo'].forEach(w=>{ if(!window.HOMOPHOB.includes(w)) window.HOMOPHOB.push(w); });
+  ['arsch','arschloch','depp','idiot','scheiße','scheisse','spasti','trottel','fick','ficken','fickt','fickst','fickte','gefickt','fick dich','fickdich'].forEach(w=>{ if(!window.BAD_RUDE.includes(w)) window.BAD_RUDE.push(w); });
+
+  function isMatch(list, msg){
+    var L = (msg||'').toLowerCase();
+    return (list||[]).some(function(w){
+      if (!w) return false;
+      var s = String(w).toLowerCase();
+      if (s==='fick dich') return /\bfick\s*dich\b/.test(L);
+      return L.includes(s);
+    });
+  }
+  function analyzeStrict(text){
+    var base = _prevAnalyze ? (_prevAnalyze(text) || {}) : {};
+    // Negatives first
+    if (isMatch([].concat(window.BAD_RACIST, window.BAD_SEXIST, window.HOMOPHOB), text)){
+      base.bad = true; base.delta = -2; base.category='rassistisch/sexistisch';
+      base.notes = base.notes||[]; base.notes.unshift('⚠️ Rassistische/sexistische Sprache (-2).');
+      return base;
+    }
+    if (isMatch(window.BAD_RUDE, text)){
+      base.bad = true; base.delta = -1; base.category='unhöflich';
+      base.notes = base.notes||[]; base.notes.unshift('⚠️ Unhöfliche Sprache (-1).');
+      return base;
+    }
+    // Positives
+    var L = String(text||'').trim().toLowerCase();
+    if (/^ich\b/.test(L)){ base.bad=false; base.delta=2; base.category='ich-form'; base.notes=base.notes||[]; base.notes.unshift('👍 Ich-Form (+2).'); return base; }
+    if (/(\bbitte\b|\bdanke\b|könntest|könnten|würdest du|würdest|würde|entschuldigung|entschuldige)/.test(L)){ base.bad=false; base.delta=1; base.category='höflich'; base.notes=base.notes||[]; base.notes.unshift('🙂 Höfliche Form (+1).'); return base; }
+    base.bad=false; base.delta=0; base.category='neutral'; return base;
+  }
+  window.analyze = analyzeStrict; // ensure our scoring is active
+
+  // Supabase client reuse
+  var sb = (window.supabase && window.SUPABASE_URL) ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON) : null;
+  var seenIds = new Set(); // to avoid dup printing
+
+  async function saveMessage(body){
+    if (!sb) return null;
+    try {
+      const { data, error } = await sb.from('messages').insert([{ cls: CLS, nick: NICK, body }]).select('id,cls,nick,body,ts').single();
+      if (error) { console.warn('[saveMessage]', error); return null; }
+      if (data && data.id) seenIds.add(data.id);
+      return data;
+    } catch(e){ console.warn(e); return null; }
+  }
+  async function upsertScore(delta){
+    if (!sb || !delta) return;
+    try {
+      const { data, error } = await sb.from('scores').select('score').eq('cls', CLS).eq('nick', NICK).single();
+      let cur = (!error && data && typeof data.score==='number') ? data.score : 0;
+      const next = Math.max(0, cur + delta);
+      await sb.from('scores').upsert({ cls: CLS, nick: NICK, score: next }).select();
+    } catch(e){ console.warn('[upsertScore]', e); }
+  }
+
+  // Wrap sender to guarantee scoring and persistence order
+  var _origSend = (typeof window.handleSend === 'function') ? window.handleSend
+                : (typeof window.doSend     === 'function') ? window.doSend
+                : null;
+
+  async function sendFlow(){
+    var text = (INPUT.value||'').trim();
+    if (!text) return;
+
+    var res = analyzeStrict(text);
+
+    if (res.bad){
+      // Do not persist; show note and score negative
+      addRow('⛔ Nachricht verborgen (unangemessene Sprache)','you');
+      addBot((res.notes && res.notes.length ? res.notes.join(' ') : '⚠️ Bitte respektvoll formulieren.'));
+      if (typeof window.setScore === 'function') try{ window.setScore(res.delta||0); }catch(e){}
+      upsertScore(res.delta||0);
+      INPUT.value=''; INPUT.focus();
+      return;
+    }
+
+    // Local echo first
+    addRow(NICK+': '+text, 'you');
+
+    // Persist, then score+reset input
+    await saveMessage(text);
+    if (typeof window.setScore === 'function') try{ window.setScore(res.delta||0); }catch(e){}
+    upsertScore(res.delta||0);
+    INPUT.value=''; INPUT.focus();
+  }
+
+  // Rebind button & enter to our flow
+  try { var clone = SEND.cloneNode(true); SEND.parentNode.replaceChild(clone, SEND); SEND = clone; } catch(e){}
+  SEND.addEventListener('click', function(){ sendFlow(); });
+  INPUT.addEventListener('keydown', function(e){ if (e.key==='Enter') sendFlow(); });
+
+  // Robust realtime subscription that prints ALL inserts for this class, once
+  if (sb){
+    try {
+      sb.channel('room-v2:'+CLS)
+        .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter: 'cls=eq.'+CLS }, function(payload){
+          var row = (payload && payload.new) || {};
+          if (row.id && seenIds.has(row.id)) return; // skip our own just-inserted message already echoed
+          addRow(String(row.nick||'')+': '+String(row.body||''), 'you');
+        })
+        .subscribe();
+    } catch(e){ console.warn('[realtime]', e); }
+  }
+
+  console.log('[Fix v2] active');
 })();
 </script>
