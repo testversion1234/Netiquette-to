@@ -842,10 +842,17 @@ function __nc_addBotLineTop(text) {
   var BAD_SEXIST = ["hurensohn","fotze","hure","wichser","bitch"];
   var BAD_RUDE   = ["arsch","arschloch","depp","idiot","scheiße","scheisse","spasti","trottel"];
 
+  
   function containsBadWords(t){
-    var L = (t||"").toLowerCase();
-    return BAD_RACIST.concat(BAD_SEXIST, BAD_RUDE).some(w => L.includes(w));
+    // Prefer index logic if available
+    try {
+      if (typeof window.__containsBadWords === 'function') return window.__containsBadWords(t);
+      if (typeof window.containsBadWords === 'function' && window.containsBadWords !== containsBadWords) return window.containsBadWords(t);
+    } catch(e){}
+    var L=(t||"").toLowerCase();
+    return BAD_RACIST.concat(BAD_SEXIST, BAD_RUDE).some(function(w){ return L.indexOf(String(w).toLowerCase()) !== -1; });
   }
+
 
   // Score support (optional)
   var scoreEl = $id('score');
@@ -870,14 +877,21 @@ function __nc_addBotLineTop(text) {
   function addYou(t){ addRow(t, 'you'); }
   function addBot(t){ addRow(t, 'bot'); }
 
+  
   function analyze(t){
+    // Prefer index logic if available
+    try {
+      if (typeof window.analyzeMessage === 'function') return window.analyzeMessage(t);
+      if (typeof window.analyze === 'function' && window.analyze !== analyze) return window.analyze(t);
+    } catch(e){}
     var bad = containsBadWords(t);
     var delta = bad ? -2 : +1;
     var notes = [];
     if (bad) notes.push("Bitte respektvoll formulieren.");
     else notes.push("Danke für die höfliche Formulierung.");
-    return { bad, delta, notes };
+    return { bad: bad, delta: delta, notes: notes };
   }
+
 
   function handleSend(){
     var text = (input.value||"").trim();
