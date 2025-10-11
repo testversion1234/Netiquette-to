@@ -26,7 +26,7 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 .footer img{width:320px;max-width:95%;border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.12)}
 </style>
 </head>
-<body><div id="ranking" style="margin:10px 0;padding:10px;border:1px solid #ddd;border-radius:10px"><div style="font-weight:700;margin-bottom:6px">Rangliste (Klasse)</div><table id="rankingTable" style="width:100%;border-collapse:collapse;font-size:0.95rem"><thead></thead><tbody id="rankingBody"></tbody></table></div><script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script><script>
+<body><div id="ranking" style="margin:10px 0;padding:10px;border:1px solid #ddd;border-radius:10px"><div id="rankingTitle" style="font-weight:700;margin-bottom:6px">Rangliste</div><table id="rankingTable" style="width:100%;border-collapse:collapse;font-size:0.95rem"><thead><tr><th style="text-align:left;border-bottom:1px solid #ccc;padding:4px">Platz</th><th style="text-align:left;border-bottom:1px solid #ccc;padding:4px">Name</th><th style="text-align:left;border-bottom:1px solid #ccc;padding:4px">Punkte</th></tr></thead><tbody id="rankingBody"></tbody></table></div><script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script><script>
   // TODO: replace the placeholder values with your real Firebase config from the Index-Datei
   const firebaseConfig = {
     apiKey: "AIzaSyBzr1fMkQhNFLwm4HFTjBAeFy-IyRx-Ces",
@@ -806,776 +806,6 @@ function __nc_addBotLineTop(text) {
   });
 })();
 // --- END: Functions copied from index.html (merged) ---
-</script><script>/* === BEGIN full index logic (imported) === */
-(function(){
-
-    // ====== Score & Chat-Grundlagen ======
-    let score = 0;
-    const chat = document.getElementById('chat');
-    const input = document.getElementById('userText');
-    const sendBtn = document.getElementById('sendBtn');
-    const scoreEl = document.getElementById('score');
-
-    function addRow(text, cls){
-      const r = document.createElement('div'); r.className='row';
-      const b = document.createElement('div'); b.className=cls; b.textContent=text;
-      r.appendChild(b); chat.appendChild(r); chat.scrollTop = chat.scrollHeight;
-    }
-    function addBot(t){ addRow(t,'bot'); }
-    function addYou(t){ addRow(t,'you'); }
-    function setScore(d){ score = Math.max(0, score + d); scoreEl.textContent = score; }
-
-    // ====== Unhöflichkeits-/Vulgär-Liste (ohne diskriminierende Slurs) ======
-    const RUDE = [
-      "blöd","doof","trottel","dumm","dummkopf","hirnlos","idiot","spinner","loser","versager",
-      "peinlich","armselig","witzfigur","opfer","freak","banause","lappen","noob","dulli",
-      "scheiße","scheiss","kacke","kacka","miststück","arsch","arschloch","penner",
-      "pisser","wichser","kotzbrocken","verpeilt","furz","rotz","kotze","pisse",
-      "schlampe","hure","fotze",
-      "halt die klappe","halt die fresse","halt die schnauze","reiß die klappe nicht auf",
-      "reiß die fresse nicht auf","halts maul","halt's maul","leck mich","verpiss dich","zieh leine"
-    ];
-
-    // ====== Analyse (negativ & positiv) ======
-    function analyzeMessage(msg){
-      const notes = [];
-      let delta = 0;
-      const lower = msg.toLowerCase();
-
-      if(/[A-ZÄÖÜ](4,)/.test(msg) && msg === msg.toUpperCase()){ delta--; notes.push("⚠️ Bitte nicht BRÜLLEN (ALL CAPS)."); }
-      if((msg.match(/!/g)||[]).length>=3 || (msg.match(/\?/g)||[]).length>=3 || /[!?]{2,}/.test(msg)){ delta--; notes.push("⚠️ Zu viele !!! oder ???."); }
-      if((msg.match(/[\u{1F300}-\u{1FAFF}]/gu)||[]).length>=3){ delta--; notes.push("⚠️ Zu viele Emojis."); }
-      if(RUDE.some(w => lower.includes(w))){ delta--; notes.push("⚠️ Unhöfliche/vulgäre Formulierung vermeiden."); }
-      if(/\bdu\b.*(bist|machst|hast).*(immer|nie|total|schlecht|falsch)/i.test(msg)){ delta--; notes.push("⚠️ Vermeide DU-Unterstellungen – nutze Ich-Botschaft."); }
-
-      if(/ich\s*(finde|fühle|denke|verstehe|möchte|würde|kann|glaube|merke|habe|wünsche)/i.test(lower)){ delta++; notes.push("✅ Gute Ich-Botschaft."); }
-      if(/(kannst du|könntest du|was genau|wie meinst du|würdest du|erklär|erkläre|bitte genauer)/i.test(lower)){ delta++; notes.push("✅ Nachfragen erkannt."); }
-      if(/(sorry|entschuldigung|tut mir leid|lass uns|sachlich|ruhig|kein problem|klären|lösung|gemeinsam)/i.test(lower)){ delta++; notes.push("✅ Deeskalation."); }
-      if(/(gut gemacht|das stimmt|korrekt|richtig|gute idee|danke|super|toll|deine aufgabe(n)? (ist|sind) (gut|richtig))/i.test(lower)){ delta++; notes.push("✅ Höfliche Bestätigung."); }
-
-      return {delta, notes};
-    }
-
-    
-
-    // ====== Verbotene Wörter verbergen (NEU) ======
-    
-    // ====== Verbotene Wörter verbergen (erweitert für "Du+Beleidigung") ======
-    function __containsBadWords(msg){
-      try {
-        const raw = String(msg||"");
-        const t = raw.toLowerCase();
-
-        // 1) Wortlisten aus der Seite (falls vorhanden)
-        const lists = [];
-        if (typeof BAD_RACIST !== 'undefined') lists.push(BAD_RACIST);
-        if (typeof BAD_SEXIST !== 'undefined') lists.push(BAD_SEXIST);
-        if (typeof HOMOPHOB   !== 'undefined') lists.push(HOMOPHOB);
-        if (typeof BAD_RUDE   !== 'undefined') lists.push(BAD_RUDE);
-        if (typeof RUDE       !== 'undefined') lists.push(RUDE);
-
-        // Fallback-Basisliste (nur wenn nichts anderes vorhanden ist)
-        const fallback = ["fick","hurensohn","fotze","hure","wichser","arsch","arschloch","scheiße","scheisse","idiot","depp","homo","hundesohn","nigger","nigga","niggar","neger","kanake","zigeuner","ausländersau"];
-        const baseList = (lists.length ? lists.flat() : fallback).map(x => String(x||"").toLowerCase());
-
-        // 2) Harte Blocker: Wenn irgendein Basis-Schimpfwort einzeln vorkommt, sofort true.
-        if (baseList.some(w => w && t.includes(w))) return true;
-
-        // 3) "Du+Beleidigung" Kombinationen (glued, mit Leerzeichen, oder mit Bindestrich)
-        //    Erweitere hier die Kernwörter — inkl. der ausdrücklich gewünschten.
-        const duCores = Array.from(new Set(baseList.concat(["homo","hurensohn","hundesohn","tochter","arsch","wichser"])));
-
-        function reEscape(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-        const alt = duCores.map(reEscape).join('|');
-
-        const duCombo = new RegExp('\\bdu(?:\\s*|-)?(?:' + alt + ')\\b','i');
-        const duBistCombo = new RegExp('\\bdu\\s+bist\\s+(?:ein|eine|eines)?\\s*(?:' + alt + ')\\b','i');
-
-        if (duCombo.test(raw) || duBistCombo.test(raw)) return true;
-
-        return false;
-      } catch(e){ return false; }
-    }
-return lists.some(arr => (arr||[]).some(w => t.includes(w)));
-      } catch(e){ return false; }
-    }
-
-// ====== Bot-Starttexte ======
-    const STARTS = [
-      "Paul: „Hä? Deine Aufgabe ist doch voll falsch! 🙄“",
-      "Lisa: „Ey, du bist so langsam, mit dir kann man nix anfangen!“",
-      "Max: „Na toll, wieder typisch von dir 😂😂😂“",
-      "Anna: „Dein Referat war langweilig.“"
-    ];
-    function nextStart(){ addBot(STARTS[Math.floor(Math.random()*STARTS.length)]); }
-
-    
-    function handleSend(){
-      const text = input.value.trim();
-      if(!text) return;
-
-      const hadBad = __containsBadWords(text);
-      const res = analyzeMessage(text);
-      setScore(res.delta);
-
-      if (hadBad){
-        // Zeige NICHT die eigentliche Nachricht – stattdessen kurzer Hinweis
-        addYou("⛔️ Nachricht verborgen (unangemessene Sprache)");
-        addBot((res.notes.length? res.notes.join(" ") : "⚠️ Bitte respektvoll formulieren.") + " (Score: "+score+")");
-      } else {
-        // Nur saubere Nachrichten anzeigen
-        addYou(text);
-        addBot((res.notes.length? res.notes.join(" ") : "👍 Sehr höflich!") + " (Score: "+score+")");
-      }
-
-      input.value="";
-    }
-
-    sendBtn.addEventListener('click', handleSend);
-('click', handleSend);
-    input.addEventListener('keydown', e => { if(e.key === 'Enter') handleSend(); });
-
-    nextStart();
-  
-;
-
-// netiquette_rules_patch_v2.js — Kategorien + striktes Ahnden (Layout unverändert)
-(function(){
-  if (window.__NETI_RULES_PATCH_V2__) return;
-  window.__NETI_RULES_PATCH_V2__ = true;
-
-  function normalize(s){ return String(s||"").toLowerCase(); }
-  function containsAny(t, list){ t=t.toLowerCase(); return list.find(w=>t.includes(w)); }
-  function hasIch(t){ return /\bich\b/i.test(t); }
-  function addBotSafe(msg){
-    try {
-      if (typeof window.addBot === "function") return window.addBot(msg);
-      const chat = document.getElementById('chatbox') || document.getElementById('chat');
-      if (chat){
-        const d = document.createElement('div'); d.className = 'bot'; d.textContent = msg;
-        const row = document.createElement('div'); row.className = 'row'; row.appendChild(d);
-        chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
-      }
-    } catch(e){ console.warn("[neti-patch] addBotSafe fail:", e); }
-  }
-
-  // Wortlisten (aus Room-Chat konsolidiert + Ergänzungen Homophobie)
-  const BAD_RACIST = [
-    "heil hitler","judenschwein","nigger","neger","jude","moslem","kanake","ausländer raus",
-    "scheiß türke","scheiss türke","scheiß jude","scheiss jude"
-  ];
-  const BAD_SEXIST = [
-    "hurensohn","fotze","bitch","schlampe","schlampen","hure","wichser"
-  ];
-  const HOMOPHOB = [
-    "homo","lesbisch","lesbe","schwul","schwuchtel"
-  ];
-  const BAD_RUDE = Array.from(new Set([
-    "arsch","arschloch","bastard","blöd","blödmann","blödbommel","depp","doof","dumm","dummkopf",
-    "scheiße","scheisse","spasti","idiot","pissnelke","vollidiot","drecksack","noob","trottel","spinner",
-    "steckdosenbefruchter","fick","fuck","penner","blyat","hirnlos","loser","versager","peinlich","armselig",
-    "witzfigur","freak","banause","lappen","dulli","kacke","kacka","miststück","pisser","kotzbrocken",
-    "verpeilt","furz","rotz","kotze","pisse","halt die klappe","halt die fresse","halt die schnauze",
-    "reiß die klappe nicht auf","reiß die fresse nicht auf","halts maul","halt's maul","leck mich","verpiss dich","zieh leine"
-  ]));
-  const GOOD = [
-    "ehrlich","fair","aufmerksam","motiviert","hilfsbereit","mutig","stark","tapfer","geduldig","liebevoll",
-    "fröhlich","achtsam","friedlich","großartig","positiv","sympathisch","verständnisvoll","zuvorkommend",
-    "das ist lieb","das ist nett","das ist schön","das gefällt mir","gut gemacht","sehr gut","ich mag dich",
-    "ich finde das gut","vielen dank","du hast recht","das war fair","das war freundlich","das war super",
-    "das ist toll","gute idee","ich freue mich","ich helfe dir gerne","ich finde das klasse"
-  ];
-
-  const PENALTY_HATE = -5; // Rassismus / Sexismus / Homophobie
-  const PENALTY_RUDE = -1;
-  const BONUS_ICH    =  5;
-  const BONUS_OTHER  =  1;
-
-  const origAnalyze = window.analyzeMessage;
-  window.analyzeMessage = function(msg){
-    let base = { notes: [], delta: 0 };
-    try { if (typeof origAnalyze === "function") base = origAnalyze(msg) || base; } catch(e){}
-
-    const notes = Array.isArray(base.notes)? base.notes.slice(): [];
-    let delta = Number(base.delta||0);
-    const lower = normalize(msg);
-    let blocked = false;
-
-    // Strenge Kategorien zuerst (blockierend)
-    if (containsAny(lower, BAD_RACIST))   { delta += PENALTY_HATE; notes.push("⚠️ Rassistisch – Nachricht wird nicht gesendet."); blocked = true; }
-    else if (containsAny(lower, BAD_SEXIST))  { delta += PENALTY_HATE; notes.push("⚠️ Sexistisch – Nachricht wird nicht gesendet."); blocked = true; }
-    else if (containsAny(lower, HOMOPHOB))    { delta += PENALTY_HATE; notes.push("⚠️ Homophob – Nachricht wird nicht gesendet."); blocked = true; }
-    else if (containsAny(lower, BAD_RUDE))    { delta += PENALTY_RUDE; notes.push("⚠️ Unhöflich/vulgär – bitte anders formulieren."); }
-
-    // Form (soft)
-    if (/[A-ZÄÖÜ]{4,}/.test(msg) && msg === msg.toUpperCase()) { delta -= 1; notes.push("⚠️ Bitte nicht BRÜLLEN (ALL CAPS)."); }
-    if ((msg.match(/!/g)||[]).length>=3 || (msg.match(/\?/g)||[]).length>=3 || /[!?]{2,}/.test(msg)) { delta -= 1; notes.push("⚠️ Zu viele !!! oder ???."); }
-
-    // Positive Muster
-    if (hasIch(lower)) { delta += BONUS_ICH; notes.push("✅ Gute Ich‑Botschaft."); }
-    if (/(kannst du|könntest du|was genau|wie meinst du|würdest du|erklär|erkläre|bitte genauer)/i.test(lower)) { delta += BONUS_OTHER; notes.push("✅ Nachfragen erkannt."); }
-    if (/(sorry|entschuldigung|tut mir leid|lass uns|sachlich|ruhig|kein problem|klären|lösung|gemeinsam)/i.test(lower)) { delta += BONUS_OTHER; notes.push("✅ Deeskalation."); }
-    if (/(gut gemacht|das stimmt|korrekt|richtig|gute idee|danke|super|toll|deine aufgabe(n)? (ist|sind) (gut|richtig))/i.test(lower)) { delta += BONUS_OTHER; notes.push("✅ Höfliche Bestätigung."); }
-    for (const w of GOOD) { if (lower.includes(w)) { delta += BONUS_OTHER; break; } }
-
-    return { delta, notes, blocked };
-  };
-
-  // Sanfter Hook für handleSend: blockierte Nachrichten NICHT anzeigen
-  const chat   = document.getElementById('chatbox') || document.getElementById('chat');
-  const input  = document.getElementById('userText') || document.getElementById('input');
-  const scoreEl= document.getElementById('score') || document.getElementById('scoreBox') || null;
-
-  function setScore(delta){
-    if (!scoreEl) return;
-    const cur = Number(scoreEl.textContent||0); scoreEl.textContent = String(cur + delta);
-  }
-  function addYouSafe(text){
-    const d=document.createElement('div'); d.className='you'; d.textContent=text;
-    const row=document.createElement('div'); row.className='row'; row.appendChild(d);
-    chat.appendChild(row); chat.scrollTop=chat.scrollHeight;
-  }
-
-  const origHandle = window.handleSend;
-  window.handleSend = async function(){
-    const text = (input && input.value||"").trim();
-    if (!text) return;
-    const res = window.analyzeMessage(text);
-
-    if (res.blocked){
-      setScore(res.delta);
-      addBotSafe(res.notes.join(" "));
-      input.value = "";
-      return; // NICHT anzeigen
-    }
-
-    // Sonst normal weiter – entweder dein Original oder unser Fallback
-    if (typeof origHandle === "function"){
-      return origHandle(); // nutzt dieselbe Eingabe, deine Logik bleibt
-    } else {
-      addYouSafe(text);
-      setScore(res.delta);
-      addBotSafe((res.notes.length? res.notes.join(" ") : (res.delta>0 ? "👍 Sehr höflich!" : "👎 Unhöflich")));
-      input.value = "";
-    }
-  };
-
-  // Enter-Key an das (neue) handleSend hängen (idempotent)
-  if (input){
-    input.addEventListener('keydown', function(e){ if (e.key === 'Enter') window.handleSend(); });
-  }
-  const sendBtn= document.getElementById('sendBtn') || document.getElementById('sendbtn') || document.getElementById('send_button');
-  if (sendBtn){
-    sendBtn.addEventListener('click', function(){ window.handleSend(); });
-  }
-
-  console.log("[neti-patch v2] Kategorien aktiv (Rassismus/Sexismus/Homophobie/Unhöflich) — Layout unverändert.");
-})();
-
-
-;
-
-// === NetticatCoach — permanent aktiv, kurz & freundlich auf Deutsch, mit Emojis ===
-// 🔐 API-Key manuell hier eintragen (nicht mit Key ins öffentliche Repo pushen!)
-const OPENAI_API_KEY = "DEIN_API_KEY_HIER"; // <-- trage hier deinen API-Key manuell ein
-
-// Hilfsfunktionen sicher nutzen, ohne Layout zu verändern
-function __nc_addBotLine(text) {
-  try {
-    if (typeof window.addBot === "function") { window.addBot(text); return; }
-    const chat = document.getElementById('chatbox') || document.getElementById('chat');
-    if (!chat) return;
-    const row = document.createElement('div'); row.className = 'row';
-    const b = document.createElement('div'); b.className = 'bot'; b.textContent = text;
-    row.appendChild(b); chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
-  } catch(_) {}
-}
-
-function __nc_addBotLineTop(text) {
-  try {
-    const chat = document.getElementById('chatbox') || document.getElementById('chat');
-    if (!chat) { __nc_addBotLine(text); return; }
-    const row = document.createElement('div'); row.className = 'row';
-    const b = document.createElement('div'); b.className = 'bot'; b.textContent = text;
-    row.appendChild(b);
-    if (chat.firstChild) chat.insertBefore(row, chat.firstChild); else chat.appendChild(row);
-    chat.scrollTop = 0;
-  } catch(_) {}
-}
-
-// Beim Laden: Begrüßung im Schülerton (vor das Szenario)
-(function(){
-  const greet = "Hey 👋, ich bin NetticatCoach 😺 — ich chill hier mit euch im Chat und helf, wenn’s mal hitzig wird 😅";
-  // Wenn schon Nachrichten existieren (z. B. Szenario), Begrüßung oben einsetzen
-  const chat = document.getElementById('chatbox') || document.getElementById('chat');
-  if (chat && chat.children && chat.children.length > 0) {
-    __nc_addBotLineTop(greet);
-  } else {
-    __nc_addBotLine(greet);
-  }
-})();
-
-// Permanent aktiv: auf JEDE Nachricht reagieren
-(function(){
-  const input = document.getElementById('userText') || document.getElementById('input');
-  const sendBtn = document.getElementById('sendBtn') || document.getElementById('sendbtn') || document.getElementById('send_button');
-  if (!input || !sendBtn) { console.warn("NetticatCoach: Eingabe/Send-Elemente nicht gefunden."); return; }
-
-  const origHandleSend = window.handleSend;
-
-  window.handleSend = async function(){
-    const text = (input.value || "").trim();
-    if (!text) return;
-
-    // 1) Zuerst deine bestehende Logik ausführen (zeigt Nutzer-Blase, Punkte, Regeln etc.)
-    if (typeof origHandleSend === "function") {
-      try { await origHandleSend(); } catch(_) {}
-    }
-
-    // 2) Danach NetticatCoach-Antwort holen
-    const reply = await askAI(text);
-    __nc_addBotLine("Antwort von NetticatCoach: " + reply);
-  };
-
-  // Sicherstellen, dass Klick & Enter unser (neues) handleSend verwenden
-  try {
-    sendBtn.addEventListener('click', function(){ window.handleSend(); });
-    input.addEventListener('keydown', function(e){ if (e.key === 'Enter') window.handleSend(); });
-  } catch(_) {}
-})();
-
-;
-
-// === Abgesetztes Intro-Fenster vom NetticatCoach (ohne Layout-Änderung) ===
-(function showCoachIntro(){
-  const introText = "Hier stelle ich dir verschiedene Szenarien vor. Wie würdest du darauf antworten?";
-  const wrap = document.createElement('div');
-  wrap.setAttribute('role','dialog');
-  wrap.setAttribute('aria-label','NetticatCoach Einführung');
-  wrap.style.cssText = [
-    "position:fixed","inset:0","z-index:99999","display:flex","align-items:center",
-    "justify-content:center","background:rgba(0,0,0,.35)"
-  ].join(";");
-  const card = document.createElement('div');
-  card.style.cssText = [
-    "max-width:520px","width:90%","background:#fff","border-radius:14px",
-    "box-shadow:0 10px 30px rgba(0,0,0,.25)","padding:18px 18px 14px 18px",
-    "font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif",
-    "color:#111"
-  ].join(";");
-  card.innerHTML =
-    '<div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:10px;">' +
-      '<div style="font-size:20px">😺</div>' +
-      '<div style="font-weight:700">NetticatCoach</div>' +
-    '</div>' +
-    '<div style="margin:4px 0 14px 0; font-size:15px;">'+ introText +'</div>' +
-    '<div style="display:flex;gap:10px;justify-content:flex-end;">' +
-      '<button id="ncIntroOk" style="background:#2563eb;color:#fff;border:0;border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:600;">Los geht’s!</button>' +
-    '</div>';
-  wrap.appendChild(card);
-  document.body.appendChild(wrap);
-  const okBtn = card.querySelector('#ncIntroOk'); okBtn?.focus();
-  async function closeIntro(){
-    try { await initOpenAIKey(); } catch(_) {}
-
-    wrap.remove();
-    if (typeof window.nextStart === "function" && !window.__ncIntroStartedScenario){
-      window.__ncIntroStartedScenario = true;
-      try { /* nichts tun, wenn dein Szenario schon läuft */ } catch(_){}
-    }
-  }
-  okBtn.addEventListener('click', closeIntro);
-  wrap.addEventListener('click', (e)=>{ if(e.target === wrap) closeIntro(); });
-  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeIntro(); });
-})();
-
-;
-
-(function(){
-  if (window.__NETI_SCENARIOS_V8__) return;
-  window.__NETI_SCENARIOS_V8__ = true;
-
-  // ===== Config =====
-  const NEXT_SCENARIO_AFTER = 2;
-  const SPAM_REPEAT_CONSONANT_FROM = 3; // set 2 for Doppelkonsonant sofort
-  const politeTokens = [
-    "bitte","danke","entschuld","könntest du","kannst du","würde","könnte",
-    "ich finde","meiner meinung","sorry","entschuldige","entschuldigung"
-  ];
-
-  // Offensive phrases / words
-  const phraseBad = [
-    /fick\s*dich/i,
-    /du\s*huren?\s*sohn/i,
-    /du\s*h[uü]r[eenao]*n?\s*sohn/i,
-    /du\s+[a-zäöüß]{2,12}\s*sohn/i,
-    /du\s*hure/i,
-    /du\s*wichser/i
-  ];
-  const wordBad = [
-    "fick","ficken","scheiss","schei\u00DFe","scheisse","arsch","arschloch",
-    "hurensohn","hure","wichser","miststück","bastard","fotze"
-  ];
-
-  // ===== Utils =====
-  function $(sel, root=document){ return root.querySelector(sel); }
-  function $all(sel, root=document){ return Array.from(root.querySelectorAll(sel)); }
-  function findChatBox(){ return $("#chatbox") || $("#chat") || $(".chatbox") || $(".chat-body"); }
-  function findInput(){ return $("#message") || $("input[name='message']") || $("input[type='text']") || $("textarea"); }
-  function findSendButton(){
-    let btn = $("#send") || $("#sendBtn") || $("#send-button") || $("button[type='submit']");
-    if (!btn) btn = $all("button").find(b => /send|senden/i.test(b.id || "") || /senden|absenden|send/i.test(b.textContent || ""));
-    return btn || null;
-  }
-  function appendBotBubbleToChat(html){
-    const chat = findChatBox() || document.body;
-    const row = document.createElement("div");
-    row.className = "row";
-    const bot = document.createElement("div");
-    bot.className = "bot";
-    bot.innerHTML = html;
-    row.appendChild(bot);
-    chat.appendChild(row);
-    chat.scrollTop = chat.scrollHeight || 0;
-  }
-
-  function findGreetingRow(){
-    const candidates = $all(".row .bot, .bot, .greeting, #greeting, .intro, .welcome").map(el => el.closest(".row") || el);
-    for (const row of candidates){
-      const text = (row.textContent || "").toLowerCase().replace(/\s+/g, " ");
-      if (text.includes("etikette") && text.includes("coach")) return row;
-      if (text.includes("netiquette") && text.includes("coach")) return row;
-      if (text.includes("hey") && (text.includes("ich bin") || text.includes("i am")) && (text.includes("etikette") || text.includes("netiquette"))) return row;
-    }
-    return null;
-  }
-
-  // ===== Scenario host between greeting and chat =====
-  let scenarioHost, nextBtn, counterSpan, scoreHUD;
-  function ensureScenarioHost(){
-    if (!scenarioHost){
-      scenarioHost = document.createElement("div");
-      scenarioHost.id = "scenarioHost";
-      scenarioHost.style.margin = "8px 0 10px 0";
-    }
-    const greet = findGreetingRow();
-    const chat = findChatBox();
-    if (greet && greet.parentNode){
-      if (greet.nextSibling !== scenarioHost){
-        greet.parentNode.insertBefore(scenarioHost, greet.nextSibling);
-      }
-    } else if (chat && chat.parentNode){
-      if (chat.previousSibling !== scenarioHost){
-        chat.parentNode.insertBefore(scenarioHost, chat);
-      }
-    } else {
-      if (document.body.firstChild !== scenarioHost){
-        document.body.insertBefore(scenarioHost, document.body.firstChild || null);
-      }
-    }
-  }
-
-  const scenarios = [
-    "Ich lese eine Nachricht, die mich verletzt. Ich will klar sagen, dass mich der Ton stört, ohne zurückzuschimpfen. Wie formuliere ich das höflich?",
-    "Ich möchte jemanden korrigieren, ohne belehrend zu wirken. Wie schreibe ich das freundlich in der Ich-Form?",
-    "Ich habe im Affekt eine unhöfliche Nachricht geschrieben. Ich möchte mich entschuldigen und es besser machen. Was schreibe ich?",
-    "Ich brauche Hilfe bei einer Aufgabe. Ich will höflich fragen und sagen, was ich schon versucht habe. Wie formuliere ich das?",
-    "Ich will eine hitzige Diskussion beruhigen und an unsere Regeln erinnern. Was schreibe ich, um zu deeskalieren?"
-  ];
-  function shuffle(arr){
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  }
-  const order = shuffle(scenarios.slice());
-  let idx = 0;
-  let answersSinceScenario = 0;
-
-  function renderScenario(){
-    ensureScenarioHost();
-    const text = order[idx] || order[0];
-    scenarioHost.innerHTML = ""
-      + "<div class='row'><div class='bot'>"
-      +   "<div style='display:flex;align-items:center;gap:10px;flex-wrap:wrap'>"
-      +     "<div><strong>Szenario:</strong> " + text + "</div>"
-      +     "<button id='nextScenarioBtn' type='button' disabled>Weiteres Szenario</button>"
-      +   "</div>"
-      +   "<div class='muted' style='margin-top:6px'>Schreibe deine Antwort im Chat <em>in der Ich-Form</em> und bleibe höflich.</div>"
-      +   "<div id='scenarioCounter' style='margin-top:6px; font-size:0.9em; opacity:0.8'></div>"
-      +   "<div id='scoreHUD' style='margin-top:6px; font-size:0.9em; opacity:0.9'></div>"
-      + "</div></div>";
-
-    nextBtn = $("#nextScenarioBtn", scenarioHost);
-    counterSpan = $("#scenarioCounter", scenarioHost);
-    scoreHUD = $("#scoreHUD", scenarioHost);
-
-    answersSinceScenario = 0;
-    updateCounter();
-    updateScoreDisplay();
-
-    if (nextBtn){
-      nextBtn.addEventListener("click", function(){
-        idx = (idx + 1) % order.length;
-        renderScenario();
-      });
-    }
-  }
-
-  function updateCounter(){
-    if (!counterSpan || !nextBtn) return;
-    const remaining = Math.max(0, NEXT_SCENARIO_AFTER - answersSinceScenario);
-    if (remaining > 0){
-      counterSpan.textContent = "Noch " + remaining + " Antwort" + (remaining===1?"":"en") + " bis zum nächsten Szenario.";
-      nextBtn.disabled = true;
-    } else {
-      counterSpan.textContent = "Bereit: Du kannst das nächste Szenario starten.";
-      nextBtn.disabled = false;
-    }
-  }
-
-  // ===== Scoring =====
-  const score = { plus: 0, minus: 0 };
-  function findScoreElement(){
-    const candidates = ["#score", "#points", "#negPoints", "#negativeScore", ".score-value"];
-    for (const sel of candidates){
-      const el = $(sel);
-      if (el) return el;
-    }
-    return null;
-  }
-  function updateScoreDisplay(){
-    const el = findScoreElement();
-    const total = score.plus - score.minus;
-    if (el){
-      if ("value" in el) el.value = String(total);
-      el.textContent = String(total);
-    }
-    if (typeof total === "number" && scoreHUD){
-      scoreHUD.textContent = "Punkte: +" + score.plus + " / -" + score.minus + " (Gesamt: " + total + ")";
-    }
-  }
-  function countPolite(text){
-    if (!text) return 0;
-    let c = 0;
-    const low = text.toLowerCase();
-    politeTokens.forEach(tok => { if (low.includes(tok)) c++; });
-    return Math.min(c, 2);
-  }
-
-  // ===== Censoring & Spam detection =====
-  function maskWord(w){ if (!w) return w; if (w.length <= 2) return "*".repeat(w.length); return w[0] + "*".repeat(w.length - 1); }
-  function maskSegmentKeepingSpaces(seg){ return seg.replace(/\S+/g, (word) => maskWord(word)); }
-
-  function censorText(text){
-    if (!text) return { censored: text, penaltyCount: 0 };
-    let penalty = 0;
-    let out = text;
-    phraseBad.forEach(re => { out = out.replace(re, (m) => { penalty++; return maskSegmentKeepingSpaces(m); }); });
-    wordBad.forEach(w => {
-      const re = new RegExp("\\b" + w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&") + "\\b", "gi");
-      out = out.replace(re, (m) => { penalty++; return maskWord(m); });
-    });
-    return { censored: out, penaltyCount: penalty };
-  }
-
-  function detectSpam(text){
-    if (!text) return { count: 0, matches: [], types: [] };
-    const types = [];
-    let count = 0;
-    const consonants = "bcdfghjklmnpqrstvwxyzß";
-    const reRepeatCons = new RegExp("([" + consonants + "])\\1{" + (SPAM_REPEAT_CONSONANT_FROM-1) + ",}", "i");
-    if (reRepeatCons.test(text)){ count += 1; types.push("wiederholte Konsonanten"); }
-    const reRepeatWordSpaced = new RegExp("\\b(\\w{1,20})(?:\\s+\\1){4,}\\b","gi");
-    if (reRepeatWordSpaced.test(text)){ count += 1; types.push("wiederholte Wörter (mit Abstand)"); }
-    const reRepeatTokenNoSpace = new RegExp("\\b([a-zA-Z]{1,10})\\1{4,}\\b","g");
-    if (reRepeatTokenNoSpace.test(text)){ count += 1; types.push("wiederholte Wörter (ohne Abstand)"); }
-    return { count, types };
-  }
-
-  function highlightLastUserMessage(){
-    const chat = findChatBox() || document.body;
-    const rows = Array.from(chat.querySelectorAll(".row"));
-    for (let i = rows.length - 1; i >= 0; i--){
-      const r = rows[i];
-      const hasBot = !!r.querySelector(".bot");
-      if (hasBot) continue;
-      let target = r.querySelector(".user") || r.querySelector(":scope > div:not(.bot)") || r;
-      if (!target) continue;
-      const html = target.innerHTML;
-      const replaced = html.replace(/(\S*\*+\S*)/g, "<span style='color:red;font-weight:bold'>$1</span>");
-      if (replaced !== html) target.innerHTML = replaced;
-      break;
-    }
-  }
-
-  function annotateLastUserMessage(plusAdded, minusAdded, total, originalText){
-    const chat = findChatBox() || document.body;
-    const rows = Array.from(chat.querySelectorAll(".row"));
-    for (let i = rows.length - 1; i >= 0; i--){
-      const r = rows[i];
-      if (r.querySelector(".bot")) continue;
-      if (r.getAttribute("data-has-pts")) break;
-      r.setAttribute("data-has-pts","1"); // processed; no feedback injected below
-      break;
-    }
-  }
-
-  function applyPenalty(count, reason){
-    if (!count) return;
-    score.minus += count;
-    updateScoreDisplay();
-    appendBotBubbleToChat("Hinweis: " + reason + " – " + count + " Punkt(e) abgezogen.");
-  }
-  function applyPlusPoints(count){
-    if (!count) return;
-    score.plus += count;
-    updateScoreDisplay();
-    appendBotBubbleToChat("Super: Höfliche Formulierung erkannt – +" + count + " Punkt(e).");
-  }
-
-  function onUserSend(textFromInput){
-    const originalText = textFromInput || "";
-
-    const plus = countPolite(originalText);
-    const spam = detectSpam(originalText);
-    const { censored, penaltyCount } = censorText(originalText);
-
-    const input = findInput();
-    if (input && censored !== undefined) input.value = censored;
-
-    const minus = (spam.count || 0) + (penaltyCount || 0);
-    if (spam.count > 0) applyPenalty(spam.count, "Spam erkannt (" + (spam.types || []).join(", ") + ")");
-    if (penaltyCount > 0) applyPenalty(penaltyCount, "Unhöfliche Sprache erkannt");
-    if (plus > 0 && minus === 0) applyPlusPoints(plus); // patched: no + when minus>0
-
-    answersSinceScenario++;
-    updateCounter();
-
-    const total = score.plus - score.minus;
-    setTimeout(function(){
-      highlightLastUserMessage();
-      annotateLastUserMessage(plus, minus, total, originalText);
-    }, 80);
-  }
-
-  function wrapSendMessage(){
-    const original = window.sendMessage;
-    if (typeof original === "function"){
-      window.sendMessage = function(){
-        const input = findInput();
-        const text = input ? (input.value || "") : "";
-        onUserSend(text);
-        return original.apply(this, arguments);
-      };
-      return true;
-    }
-    return false;
-  }
-
-  function attachFormAndButtonHandlers(){
-    const form = $("form") || (findInput() && findInput().form);
-    if (form && !form.__netiPatched){
-      form.addEventListener("submit", function(){
-        const input = findInput();
-        const text = input ? (input.value || "") : "";
-        onUserSend(text);
-      }, true);
-      form.__netiPatched = true;
-    }
-    const btn = findSendButton();
-    if (btn && !btn.__netiPatched){
-      try { btn.disabled = false; } catch(e){}
-      if ((btn.textContent || "").trim() === "") btn.textContent = "Senden";
-      btn.addEventListener("click", function(){
-        const input = findInput();
-        const text = input ? (input.value || "") : "";
-        onUserSend(text);
-      }, true);
-      btn.__netiPatched = true;
-    }
-  }
-
-  function ready(fn){
-    if (document.readyState !== "loading") fn();
-    else document.addEventListener("DOMContentLoaded", fn);
-  }
-
-  ready(function(){
-    renderScenario();
-    updateScoreDisplay();
-    if (!wrapSendMessage()){
-      attachFormAndButtonHandlers();
-      const obs = new MutationObserver(() => {
-        ensureScenarioHost();
-        attachFormAndButtonHandlers();
-      });
-      obs.observe(document.documentElement, { childList: true, subtree: true });
-    } else {
-      const obs2 = new MutationObserver(() => ensureScenarioHost());
-      obs2.observe(document.documentElement, { childList: true, subtree: true });
-    }
-  });
-})();
-
-})();
-/* === END full index logic (imported) === */
-</script><script>
-/* === Adapter: prefer index functions & unify word lists === */
-(function(){
-  // Expose combined lists for use by containsBadWords fallback
-  var lists = { BAD_RACIST:[], BAD_SEXIST:[], HOMOPHOB:[], BAD_RUDE:[] };
-  try{
-    if (Array.isArray(window.BAD_RACIST)) lists.BAD_RACIST = lists.BAD_RACIST.concat(window.BAD_RACIST);
-    if (Array.isArray(window.BAD_SEXIST)) lists.BAD_SEXIST = lists.BAD_SEXIST.concat(window.BAD_SEXIST);
-    if (Array.isArray(window.HOMOPHOB))   lists.HOMOPHOB   = lists.HOMOPHOB.concat(window.HOMOPHOB);
-    if (Array.isArray(window.BAD_RUDE))   lists.BAD_RUDE   = lists.BAD_RUDE.concat(window.BAD_RUDE);
-  }catch(e){}
-
-  // Add robust German F-word variants
-  var EXTRA = ["fick","ficken","fickt","fickst","fickte","gefickt","fick dich","fickdich"];
-  lists.BAD_RUDE = Array.from(new Set(lists.BAD_RUDE.concat(EXTRA)));
-
-  // Install global helpers if absent
-  if (typeof window.containsBadWords !== 'function') {
-    window.containsBadWords = function(t){
-      try {
-        if (typeof window.__containsBadWords === 'function') return window.__containsBadWords(t);
-        if (typeof window.analyzeMessage === 'function') {
-          // some index implementations expose only analyzeMessage which encodes detection
-          var a = window.analyzeMessage(t)||{};
-          return !!(a.bad || a.isBad || a.block || a.delta<0);
-        }
-      } catch(e){}
-      var L=(t||"").toLowerCase();
-      var union = [].concat(lists.BAD_RACIST, lists.BAD_SEXIST, lists.HOMOPHOB, lists.BAD_RUDE);
-      return union.some(function(w){
-        if (!w) return false;
-        var s = String(w).toLowerCase();
-        if (s==="fick dich") return /\bfick\s*dich\b/.test(L);
-        return L.indexOf(s) !== -1;
-      });
-    };
-  }
-
-  if (typeof window.analyze !== 'function') {
-    window.analyze = function(text){
-      try {
-        if (typeof window.analyzeMessage === 'function') return window.analyzeMessage(text);
-      } catch(e){}
-      var bad = window.containsBadWords(text);
-      var delta = bad ? -2 : +1;
-      var notes = [];
-      if (bad) notes.push("Bitte respektvoll formulieren.");
-      else notes.push("Danke für die höfliche Formulierung.");
-      return { bad: bad, delta: delta, notes: notes };
-    };
-  }
-
-  console.log("[Adapter] Index-Logik & Wortlisten aktiv (Sendewiring unverändert).");
-})();
-/* === /Adapter === */
 </script><script>
 /* === Clean Send Rewrite (no layout changes) === */
 (function(){
@@ -1680,180 +910,167 @@ function __nc_addBotLineTop(text) {
 })(); 
 /* === /Send Rewrite === */
 </script><script>
-/* === Ranking & Scoring (keeps existing send flow) === */
+/* === Ranking & Scoring (fixed) === */
 (function(){
-  // Read URL params
-  var params = new URLSearchParams(location.search);
-  var CLS = params.get('cls') || 'default';
-  var NICK = params.get('nick') || 'Gast';
+  // Params
+  var P = new URLSearchParams(location.search);
+  var CLS = P.get('cls') || 'default';
+  var NICK = P.get('nick') || 'Gast';
 
   // Helpers
   function $(sel){ return document.querySelector(sel); }
-  function text(t){ return (t==null?'':String(t)); }
+  function byId(id){ return document.getElementById(id); }
+  function t(s){ return s==null? "" : String(s); }
 
-  // Word lists from index if present
+  // Try to consume word lists from index if available
   var BAD_RACIST = Array.isArray(window.BAD_RACIST) ? window.BAD_RACIST.slice() : [];
   var BAD_SEXIST = Array.isArray(window.BAD_SEXIST) ? window.BAD_SEXIST.slice() : [];
   var BAD_RUDE   = Array.isArray(window.BAD_RUDE)   ? window.BAD_RUDE.slice()   : [];
-  // Extra robust F-words
+
+  // Ensure strong coverage for German F-word variants
   ["fick","ficken","fickt","fickst","fickte","gefickt","fick dich","fickdich"].forEach(function(w){
     if (BAD_RUDE.indexOf(w)===-1) BAD_RUDE.push(w);
   });
 
-  // Scoring rules
   function isRacistSexist(msg){
-    var L = msg.toLowerCase();
-    var union = BAD_RACIST.concat(BAD_SEXIST);
-    return union.some(function(w){
+    var L = t(msg).toLowerCase();
+    return BAD_RACIST.concat(BAD_SEXIST).some(function(w){
       if (!w) return false;
       var s = String(w).toLowerCase();
       if (s==="fick dich") return /\bfick\s*dich\b/.test(L);
-      return L.indexOf(s)!==-1;
+      return L.indexOf(s) !== -1;
     });
   }
   function isRude(msg){
-    var L = msg.toLowerCase();
+    var L = t(msg).toLowerCase();
     return BAD_RUDE.some(function(w){
       if (!w) return false;
       var s = String(w).toLowerCase();
       if (s==="fick dich") return /\bfick\s*dich\b/.test(L);
-      return L.indexOf(s)!==-1;
+      return L.indexOf(s) !== -1;
     });
   }
   function isIchForm(msg){
-    var L = msg.trim().toLowerCase();
-    // "ich ..." at start; allow punctuation after "ich"
+    var L = t(msg).trim().toLowerCase();
     return /^\s*ich\b/.test(L);
   }
   function isPolite(msg){
-    var L = msg.toLowerCase();
-    return /\b(bitte|danke|könntest|könnten|würd(e|est)st du|entschuldigung|entschuldige)\b/.test(L);
+    var L = t(msg).toLowerCase();
+    return /\b(bitte|danke|könntest|könnten|würdest du|würdest|würde|entschuldigung|entschuldige)\b/.test(L);
   }
 
-  // Keep reference to any existing analyze (index/adapter)
-  var prevAnalyze = (typeof window.analyze === 'function') ? window.analyze : null;
-  // Our policy analyzer
-  function policyAnalyze(t){
-    t = text(t);
-    var res = prevAnalyze ? (prevAnalyze(t) || {}) : {};
-    // Hard overrides per policy
-    if (isRacistSexist(t)){
-      res.bad = true;
-      res.delta = -2;
-      (res.notes = res.notes || []).unshift("⚠️ Rassistische/sexistische Sprache ist nicht erlaubt (-2).");
-      res.category = "rassistisch/sexistisch";
-      return res;
+  // Keep old analyzer
+  var oldAnalyze = (typeof window.analyze === 'function') ? window.analyze : null;
+  // New analyzer that applies your scoring policy
+  function policyAnalyze(text){
+    var base = oldAnalyze ? (oldAnalyze(text) || {}) : {};
+    // Hard policy rules override delta/category
+    if (isRacistSexist(text)){
+      base.bad = true;
+      base.delta = -2;
+      base.category = "rassistisch/sexistisch";
+      base.notes = (base.notes||[]);
+      base.notes.unshift("⚠️ Rassistische/sexistische Sprache (-2).");
+      return base;
     }
-    if (isRude(t)){
-      res.bad = true;
-      // Only -1 for unhöflich (stärker sanktioniert oben)
-      res.delta = -1;
-      (res.notes = res.notes || []).unshift("⚠️ Unhöfliche Sprache (-1).");
-      res.category = "unhöflich";
-      return res;
+    if (isRude(text)){
+      base.bad = true;
+      base.delta = -1;
+      base.category = "unhöflich";
+      base.notes = (base.notes||[]);
+      base.notes.unshift("⚠️ Unhöfliche Sprache (-1).");
+      return base;
     }
-    // Positive scoring
-    if (isIchForm(t)){
-      res.bad = false;
-      res.delta = 2;
-      (res.notes = res.notes || []).unshift("👍 Ich-Form (+2).");
-      res.category = "ich-form";
-      return res;
+    if (isIchForm(text)){
+      base.bad = false;
+      base.delta = 2;
+      base.category = "ich-form";
+      base.notes = (base.notes||[]);
+      base.notes.unshift("👍 Ich-Form (+2).");
+      return base;
     }
-    if (isPolite(t)){
-      res.bad = false;
-      res.delta = 1;
-      (res.notes = res.notes || []).unshift("🙂 Höfliche Form (+1).");
-      res.category = "höflich";
-      return res;
+    if (isPolite(text)){
+      base.bad = false;
+      base.delta = 1;
+      base.category = "höflich";
+      base.notes = (base.notes||[]);
+      base.notes.unshift("🙂 Höfliche Form (+1).");
+      return base;
     }
-    // Neutral
-    res.bad = false;
-    res.delta = 0;
-    res.category = "neutral";
-    return res;
+    // neutral: 0
+    base.bad = false;
+    base.delta = 0;
+    base.category = "neutral";
+    return base;
   }
-
-  // Override analyze to our policy (send flow calls analyze(text))
   window.analyze = policyAnalyze;
 
-  // === Leaderboard ===
-  var KEY = "netiquette_rank:" + CLS;
-  function loadLocal(){
-    try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e){ return {}; }
-  }
-  function saveLocal(map){
-    try { localStorage.setItem(KEY, JSON.stringify(map)); } catch(e){}
-  }
+  // Leaderboard storage
+  var KEY = "netiquette_rank:"+CLS;
+  function loadMap(){ try{ return JSON.parse(localStorage.getItem(KEY)||"{}"); }catch(e){ return {}; } }
+  function saveMap(m){ try{ localStorage.setItem(KEY, JSON.stringify(m)); }catch(e){} }
 
   function addScore(nick, delta){
-    var map = loadLocal();
-    map[nick] = (map[nick] || 0) + (delta || 0);
-    saveLocal(map);
-    render(map);
-    pushFirebase(nick, map[nick]);
+    if (!delta) return;
+    var m = loadMap();
+    m[nick] = (m[nick]||0) + delta;
+    saveMap(m);
+    render(m);
+    pushFirebase(nick, m[nick]);
   }
 
-  function render(map){
-    var rows = Object.keys(map).map(function(name){ return {name:name, score:map[name]}; });
-    rows.sort(function(a,b){ return b.score - a.score || a.name.localeCompare(b.name); });
-    var tbody = document.getElementById('rankingBody');
+  function render(m){
+    var tbody = byId('rankingBody');
     if (!tbody) return;
+    var rows = Object.keys(m).map(function(name){ return {name:name, score:m[name]}; });
+    rows.sort(function(a,b){ return b.score - a.score || a.name.localeCompare(b.name); });
     tbody.innerHTML = "";
-    rows.forEach(function(r, idx){
+    rows.forEach(function(r, i){
       var tr = document.createElement('tr');
-      tr.innerHTML = '<td style="padding:4px">'+(idx+1)+'</td>' +
+      tr.innerHTML = '<td style="padding:4px">'+(i+1)+'</td>' +
                      '<td style="padding:4px">'+r.name+'</td>' +
                      '<td style="padding:4px;font-weight:700">'+r.score+'</td>';
       tbody.appendChild(tr);
     });
-    var title = document.querySelector('#ranking > div');
+    var title = byId('rankingTitle');
     if (title) title.textContent = "Rangliste ("+CLS+")";
   }
 
-  // Hook into setScore used by send flow to keep UI in sync
-  var scoreSpan = document.getElementById('score');
-  var prevSetScore = (typeof window.setScore === 'function') ? window.setScore : null;
+  // Hook setScore to also update leaderboard
+  var oldSetScore = (typeof window.setScore === 'function') ? window.setScore : null;
   window.setScore = function(delta){
-    // call original if exists (e.g., updates on-page score)
-    if (prevSetScore) try{ prevSetScore(delta); }catch(e){}
-    // update leaderboard for this user
-    if (delta) addScore(NICK, delta);
+    if (oldSetScore) try{ oldSetScore(delta); }catch(e){}
+    addScore(NICK, delta||0);
   };
 
   // Initial render
-  render(loadLocal());
+  render(loadMap());
 
-  // === Optional Firebase sync (Realtime DB compat) ===
-  function hasFirebase(){
-    return (window.firebase && window.firebase.database);
-  }
+  // Optional Firebase sync (compat SDK)
+  function hasFirebase(){ return (window.firebase && window.firebase.database); }
   function fbRef(){
-    try { return window.firebase.database().ref('leaderboard/'+CLS); } catch(e){ return null; }
+    try { return firebase.database().ref('leaderboard/'+CLS); } catch(e){ return null; }
   }
   function pushFirebase(nick, total){
-    var ref = fbRef();
-    if (!ref) return;
-    try { ref.child(encodeURIComponent(nick)).set(total); } catch(e){}
+    var ref = fbRef(); if (!ref) return;
+    try{ ref.child(encodeURIComponent(nick)).set(total); }catch(e){}
   }
   function subscribeFirebase(){
-    var ref = fbRef();
-    if (!ref) return;
+    var ref = fbRef(); if (!ref) return;
     ref.on('value', function(snap){
-      var map = loadLocal();
       var data = snap.val() || {};
-      // merge firebase into local preference (server source of truth)
+      var m = loadMap();
       Object.keys(data).forEach(function(k){
-        map[decodeURIComponent(k)] = data[k] || 0;
+        m[decodeURIComponent(k)] = data[k] || 0;
       });
-      saveLocal(map);
-      render(map);
+      saveMap(m);
+      render(m);
     });
   }
   if (hasFirebase()) subscribeFirebase();
 
-  console.log("[Ranking] aktiv: Klasse="+CLS+", Nick="+NICK);
-})();
+  console.log("[Ranking & Scoring] aktiv für", {CLS, NICK});
+})(); 
 /* === /Ranking & Scoring === */
 </script></body>
 </html>
