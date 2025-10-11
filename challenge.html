@@ -806,6 +806,109 @@ function __nc_addBotLineTop(text) {
   });
 })();
 // --- END: Functions copied from index.html (merged) ---
+</script><script>
+/* === Clean Send Rewrite (no layout changes) === */
+(function(){
+  // Guard to avoid double-initialization
+  if (window.__sendRewriteInit) return; 
+  window.__sendRewriteInit = true;
+
+  // Helper: robust selectors without changing layout
+  function $(sel){ return document.querySelector(sel); }
+  function $id(id){ return document.getElementById(id); }
+
+  // Try common locations for the three core elements
+  var chat = $id('chat') || $id('chatbox') || $('.chat-body') || $('[data-chat]') || document.querySelector('main, .container, body');
+  var input = $id('userText') || $('#message') || $('input[name="message"]') || $('input[type="text"]') || $('textarea');
+  var sendBtn = $id('sendBtn') || $('#send') || $('#send-button') || $('button[type="submit"]') || Array.from(document.querySelectorAll('button')).find(b => /send|senden|absenden/i.test(b.textContent||""));
+
+  if (!chat || !input || !sendBtn){
+    console.warn('[SendRewrite] Missing elements', {chat:!!chat, input:!!input, sendBtn:!!sendBtn});
+    return;
+  }
+
+  // Ensure chat is scrollable without altering CSS layouts drastically
+  try {
+    if (!/auto|scroll/.test(getComputedStyle(chat).overflowY)) {
+      chat.style.overflowY = chat.style.overflowY || 'auto';
+    }
+  } catch(e){}
+
+  // Minimal sanitize (no HTML injection)
+  function esc(t){ return String(t).replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s])); }
+
+  // Very compact lists; you can expand later
+  var BAD_RACIST = ["kanake","judenschwein","nigger","neger"];
+  var BAD_SEXIST = ["hurensohn","fotze","hure","wichser","bitch"];
+  var BAD_RUDE   = ["arsch","arschloch","depp","idiot","scheiße","scheisse","spasti","trottel"];
+
+  function containsBadWords(t){
+    var L = (t||"").toLowerCase();
+    return BAD_RACIST.concat(BAD_SEXIST, BAD_RUDE).some(w => L.includes(w));
+  }
+
+  // Score support (optional)
+  var scoreEl = $id('score');
+  function setScore(delta){
+    if (!scoreEl) return;
+    var cur = Number(scoreEl.textContent||0);
+    var next = cur + (delta||0);
+    scoreEl.textContent = String(Math.max(0, next));
+  }
+
+  // Message appenders (preserve existing classes if present)
+  function addRow(text, cls){
+    var r = document.createElement('div');
+    r.className = 'row';
+    var b = document.createElement('div');
+    b.className = cls;
+    b.textContent = text;
+    r.appendChild(b);
+    chat.appendChild(r);
+    chat.scrollTop = chat.scrollHeight;
+  }
+  function addYou(t){ addRow(t, 'you'); }
+  function addBot(t){ addRow(t, 'bot'); }
+
+  function analyze(t){
+    var bad = containsBadWords(t);
+    var delta = bad ? -2 : +1;
+    var notes = [];
+    if (bad) notes.push("Bitte respektvoll formulieren.");
+    else notes.push("Danke für die höfliche Formulierung.");
+    return { bad, delta, notes };
+  }
+
+  function handleSend(){
+    var text = (input.value||"").trim();
+    if (!text) return;
+
+    var res = analyze(text);
+    setScore(res.delta);
+
+    if (res.bad){
+      addYou("⛔ Nachricht verborgen (unangemessene Sprache)");
+      addBot(res.notes.join(" "));
+    } else {
+      addYou(text);
+    }
+
+    input.value = "";
+    input.focus();
+  }
+
+  // Replace the send button to remove old listeners (no visual change)
+  var clone = sendBtn.cloneNode(true);
+  sendBtn.parentNode.replaceChild(clone, sendBtn);
+  sendBtn = clone;
+
+  // Wire fresh listeners
+  sendBtn.addEventListener('click', handleSend);
+  input.addEventListener('keydown', function(e){ if (e.key === 'Enter') handleSend(); });
+
+  console.log('[SendRewrite] Initialized OK');
+})(); 
+/* === /Send Rewrite === */
 </script></body>
 </html>
 <!-- Moderation Inject Start -->
