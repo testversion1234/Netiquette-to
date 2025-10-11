@@ -1263,6 +1263,87 @@ function __nc_addBotLineTop(text) {
   console.log("[Final] initialized", {CLS, NICK});
 })();
 /* === /Final Harden === */
+</script><script>
+/* === Supabase wiring (non-destructive) === */
+(function(){
+  // --- Project config (from our setup) ---
+  const SUPABASE_URL  = "https://rombbbbnfngxwwhzmwjo.supabase.co";
+  const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvbWJiYmJuZm5neHd3aHptd2pvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAxNjA4NTcsImV4cCI6MjA3NTczNjg1N30.HJTNIvcROzQn-nk2Z_CNNL3VL1zl96b8Zd8SglxU87I";
+
+  if (!window.supabase) { console.warn("[Supabase] CDN not loaded"); return; }
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  // --- Get class & nick from URL ---
+  const P = new URLSearchParams(location.search);
+  const CLS  = P.get("cls")  || "default";
+  const NICK = P.get("nick") || "Gast";
+
+  // --- Find existing UI elements (no layout changes) ---
+  function $(sel){ return document.querySelector(sel); }
+  const CHAT  = document.getElementById("chat") || document.getElementById("chatbox") || $(".chat-body") || $("main") || document.body;
+  const INPUT = document.getElementById("userText") || document.getElementById("message") || $("input[type='text']") || $("textarea");
+  let   SEND  = document.getElementById("sendBtn") || document.getElementById("send") || document.getElementById("send-button")
+             || $("button[type='submit']") || Array.from(document.querySelectorAll("button")).find(b => /send|senden|absenden/i.test(b.textContent||""));
+
+  function addRow(text, who){
+    if (!CHAT) { console.log("[CHAT]", who||"you", text); return; }
+    const r = document.createElement("div"); r.className = "row";
+    const b = document.createElement("div"); b.className = who || "you"; b.textContent = text;
+    r.appendChild(b); CHAT.appendChild(r); CHAT.scrollTop = CHAT.scrollHeight;
+  }
+
+  async function loadHistory(limit=100){
+    const { data, error } = await sb.from("messages").select("id,cls,nick,body,ts").eq("cls", CLS).order("ts", {ascending:true}).limit(limit);
+    if (error) { console.warn("[Supabase] loadHistory error", error); return; }
+    (data||[]).forEach(row => addRow(`${row.nick}: ${row.body}`, "you"));
+    console.log(`[Supabase] History loaded (${data?.length||0}) for cls=${CLS}`);
+  }
+
+  function subscribe(){
+    sb.channel("room:"+CLS)
+      .on("postgres_changes", { event:"INSERT", schema:"public", table:"messages", filter:`cls=eq.${CLS}` }, payload => {
+        const row = payload.new || {};
+        addRow(`${row.nick}: ${row.body}`, "you");
+        console.log("[Supabase] New message:", row);
+      })
+      .subscribe(status => console.log("[Supabase] Realtime status:", status));
+  }
+
+  async function doSend(){
+    if (!INPUT) return;
+    const text = (INPUT.value||"").trim();
+    if (!text) return;
+    addRow(`${NICK}: ${text}`, "you"); // local echo
+    INPUT.value = ""; INPUT.focus();
+    const { error } = await sb.from("messages").insert([{ cls: CLS, nick: NICK, body: text }]);
+    if (error) { console.warn("[Supabase] insert error", error); addRow("⚠️ Senden fehlgeschlagen (siehe Console).","bot"); }
+  }
+
+  // Wire events non-destructively
+  if (SEND){
+    try {
+      const clone = SEND.cloneNode(true);
+      SEND.parentNode.replaceChild(clone, SEND);
+      SEND = clone;
+    } catch(e){}
+    SEND.addEventListener("click", doSend);
+  }
+  if (INPUT){
+    INPUT.addEventListener("keydown", e => { if (e.key === "Enter") doSend(); });
+  }
+
+  // Init
+  loadHistory();
+  subscribe();
+
+  // Quick console checks
+  window.__supabase_probe = async function(){
+    console.log("probe select:", (await sb.from("messages").select("id").limit(1)).error);
+    console.log("probe insert:", (await sb.from("messages").insert([{cls: CLS, nick: NICK, body: "probe"}])).error);
+  };
+  console.log("[Supabase] Chat wired for", {CLS, NICK});
+})();
+/* === end wiring === */
 </script></body>
 </html>
 <script>
