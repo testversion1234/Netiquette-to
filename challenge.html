@@ -26,7 +26,7 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 .footer img{width:320px;max-width:95%;border-radius:12px;box-shadow:0 10px 26px rgba(0,0,0,.12)}
 </style>
 </head>
-<body><script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script><script>
+<body><div id="ranking" style="margin:10px 0;padding:10px;border:1px solid #ddd;border-radius:10px"><div style="font-weight:700;margin-bottom:6px">Rangliste (Klasse)</div><table id="rankingTable" style="width:100%;border-collapse:collapse;font-size:0.95rem"><thead></thead><tbody id="rankingBody"></tbody></table></div><script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script><script>
   // TODO: replace the placeholder values with your real Firebase config from the Index-Datei
   const firebaseConfig = {
     apiKey: "AIzaSyBzr1fMkQhNFLwm4HFTjBAeFy-IyRx-Ces",
@@ -1679,6 +1679,182 @@ function __nc_addBotLineTop(text) {
   console.log('[SendRewrite] Initialized OK');
 })(); 
 /* === /Send Rewrite === */
+</script><script>
+/* === Ranking & Scoring (keeps existing send flow) === */
+(function(){
+  // Read URL params
+  var params = new URLSearchParams(location.search);
+  var CLS = params.get('cls') || 'default';
+  var NICK = params.get('nick') || 'Gast';
+
+  // Helpers
+  function $(sel){ return document.querySelector(sel); }
+  function text(t){ return (t==null?'':String(t)); }
+
+  // Word lists from index if present
+  var BAD_RACIST = Array.isArray(window.BAD_RACIST) ? window.BAD_RACIST.slice() : [];
+  var BAD_SEXIST = Array.isArray(window.BAD_SEXIST) ? window.BAD_SEXIST.slice() : [];
+  var BAD_RUDE   = Array.isArray(window.BAD_RUDE)   ? window.BAD_RUDE.slice()   : [];
+  // Extra robust F-words
+  ["fick","ficken","fickt","fickst","fickte","gefickt","fick dich","fickdich"].forEach(function(w){
+    if (BAD_RUDE.indexOf(w)===-1) BAD_RUDE.push(w);
+  });
+
+  // Scoring rules
+  function isRacistSexist(msg){
+    var L = msg.toLowerCase();
+    var union = BAD_RACIST.concat(BAD_SEXIST);
+    return union.some(function(w){
+      if (!w) return false;
+      var s = String(w).toLowerCase();
+      if (s==="fick dich") return /\bfick\s*dich\b/.test(L);
+      return L.indexOf(s)!==-1;
+    });
+  }
+  function isRude(msg){
+    var L = msg.toLowerCase();
+    return BAD_RUDE.some(function(w){
+      if (!w) return false;
+      var s = String(w).toLowerCase();
+      if (s==="fick dich") return /\bfick\s*dich\b/.test(L);
+      return L.indexOf(s)!==-1;
+    });
+  }
+  function isIchForm(msg){
+    var L = msg.trim().toLowerCase();
+    // "ich ..." at start; allow punctuation after "ich"
+    return /^\s*ich\b/.test(L);
+  }
+  function isPolite(msg){
+    var L = msg.toLowerCase();
+    return /\b(bitte|danke|könntest|könnten|würd(e|est)st du|entschuldigung|entschuldige)\b/.test(L);
+  }
+
+  // Keep reference to any existing analyze (index/adapter)
+  var prevAnalyze = (typeof window.analyze === 'function') ? window.analyze : null;
+  // Our policy analyzer
+  function policyAnalyze(t){
+    t = text(t);
+    var res = prevAnalyze ? (prevAnalyze(t) || {}) : {};
+    // Hard overrides per policy
+    if (isRacistSexist(t)){
+      res.bad = true;
+      res.delta = -2;
+      (res.notes = res.notes || []).unshift("⚠️ Rassistische/sexistische Sprache ist nicht erlaubt (-2).");
+      res.category = "rassistisch/sexistisch";
+      return res;
+    }
+    if (isRude(t)){
+      res.bad = true;
+      // Only -1 for unhöflich (stärker sanktioniert oben)
+      res.delta = -1;
+      (res.notes = res.notes || []).unshift("⚠️ Unhöfliche Sprache (-1).");
+      res.category = "unhöflich";
+      return res;
+    }
+    // Positive scoring
+    if (isIchForm(t)){
+      res.bad = false;
+      res.delta = 2;
+      (res.notes = res.notes || []).unshift("👍 Ich-Form (+2).");
+      res.category = "ich-form";
+      return res;
+    }
+    if (isPolite(t)){
+      res.bad = false;
+      res.delta = 1;
+      (res.notes = res.notes || []).unshift("🙂 Höfliche Form (+1).");
+      res.category = "höflich";
+      return res;
+    }
+    // Neutral
+    res.bad = false;
+    res.delta = 0;
+    res.category = "neutral";
+    return res;
+  }
+
+  // Override analyze to our policy (send flow calls analyze(text))
+  window.analyze = policyAnalyze;
+
+  // === Leaderboard ===
+  var KEY = "netiquette_rank:" + CLS;
+  function loadLocal(){
+    try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e){ return {}; }
+  }
+  function saveLocal(map){
+    try { localStorage.setItem(KEY, JSON.stringify(map)); } catch(e){}
+  }
+
+  function addScore(nick, delta){
+    var map = loadLocal();
+    map[nick] = (map[nick] || 0) + (delta || 0);
+    saveLocal(map);
+    render(map);
+    pushFirebase(nick, map[nick]);
+  }
+
+  function render(map){
+    var rows = Object.keys(map).map(function(name){ return {name:name, score:map[name]}; });
+    rows.sort(function(a,b){ return b.score - a.score || a.name.localeCompare(b.name); });
+    var tbody = document.getElementById('rankingBody');
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    rows.forEach(function(r, idx){
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td style="padding:4px">'+(idx+1)+'</td>' +
+                     '<td style="padding:4px">'+r.name+'</td>' +
+                     '<td style="padding:4px;font-weight:700">'+r.score+'</td>';
+      tbody.appendChild(tr);
+    });
+    var title = document.querySelector('#ranking > div');
+    if (title) title.textContent = "Rangliste ("+CLS+")";
+  }
+
+  // Hook into setScore used by send flow to keep UI in sync
+  var scoreSpan = document.getElementById('score');
+  var prevSetScore = (typeof window.setScore === 'function') ? window.setScore : null;
+  window.setScore = function(delta){
+    // call original if exists (e.g., updates on-page score)
+    if (prevSetScore) try{ prevSetScore(delta); }catch(e){}
+    // update leaderboard for this user
+    if (delta) addScore(NICK, delta);
+  };
+
+  // Initial render
+  render(loadLocal());
+
+  // === Optional Firebase sync (Realtime DB compat) ===
+  function hasFirebase(){
+    return (window.firebase && window.firebase.database);
+  }
+  function fbRef(){
+    try { return window.firebase.database().ref('leaderboard/'+CLS); } catch(e){ return null; }
+  }
+  function pushFirebase(nick, total){
+    var ref = fbRef();
+    if (!ref) return;
+    try { ref.child(encodeURIComponent(nick)).set(total); } catch(e){}
+  }
+  function subscribeFirebase(){
+    var ref = fbRef();
+    if (!ref) return;
+    ref.on('value', function(snap){
+      var map = loadLocal();
+      var data = snap.val() || {};
+      // merge firebase into local preference (server source of truth)
+      Object.keys(data).forEach(function(k){
+        map[decodeURIComponent(k)] = data[k] || 0;
+      });
+      saveLocal(map);
+      render(map);
+    });
+  }
+  if (hasFirebase()) subscribeFirebase();
+
+  console.log("[Ranking] aktiv: Klasse="+CLS+", Nick="+NICK);
+})();
+/* === /Ranking & Scoring === */
 </script></body>
 </html>
 <!-- Moderation Inject Start -->
