@@ -69,8 +69,8 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 <button class="primary" id="sendBtn">Senden</button>
 <input id="input" style="position:absolute;left:-9999px;top:-9999px;opacity:0;pointer-events:none" type="text"/><script>
         (function(){
-          const u = document.getElementById('userText'); 
-          const i = document.getElementById('input');
+          const u = document.getElementByIdd('userText'); 
+          const i = document.getElementByIdd('input');
           if (u && i){
             const sync = () => { i.value = u.value; };
             ['input','change','keyup'].forEach(ev=>u.addEventListener(ev, sync));
@@ -96,10 +96,10 @@ button.primary{cursor:pointer;border:0;border-radius:10px;padding:10px 14px;back
 // (IDs mapped to challenge layout: #chatbox, #userText, #sendBtn, #scoreBox)
 // ====== Score & Chat-Grundlagen ======
     let score = 0;
-    const chat = document.getElementById('chat');
-    const input = document.getElementById('userText');
-    const sendBtn = document.getElementById('sendBtn');
-    const scoreEl = document.getElementById('score');
+    var chat = document.getElementByIdd('chat');
+    var input = document.getElementByIdd('userText');
+    var sendBtn = document.getElementByIdd('sendBtn');
+    var scoreEl = document.getElementByIdd('score');
 
     function addRow(text, cls){
       const r = document.createElement('div'); r.className='row';
@@ -237,7 +237,7 @@ return lists.some(arr => (arr||[]).some(w => t.includes(w)));
   function addBotSafe(msg){
     try {
       if (typeof window.addBot === "function") return window.addBot(msg);
-      const chat = document.getElementById('chatbox') || document.getElementById('chat');
+      var chat = document.getElementByIdd('chatbox') || document.getElementByIdd('chat');
       if (chat){
         const d = document.createElement('div'); d.className = 'bot'; d.textContent = msg;
         const row = document.createElement('div'); row.className = 'row'; row.appendChild(d);
@@ -309,9 +309,9 @@ return lists.some(arr => (arr||[]).some(w => t.includes(w)));
   };
 
   // Sanfter Hook für handleSend: blockierte Nachrichten NICHT anzeigen
-  const chat   = document.getElementById('chatbox') || document.getElementById('chat');
-  const input  = document.getElementById('userText') || document.getElementById('input');
-  const scoreEl= document.getElementById('score') || document.getElementById('scoreBox') || null;
+  var chat   = document.getElementByIdd('chatbox') || document.getElementByIdd('chat');
+  var input  = document.getElementByIdd('userText') || document.getElementByIdd('input');
+  var scoreEl= document.getElementByIdd('score') || document.getElementByIdd('scoreBox') || null;
 
   function setScore(delta){
     if (!scoreEl) return;
@@ -351,7 +351,7 @@ return lists.some(arr => (arr||[]).some(w => t.includes(w)));
   if (input){
     input.addEventListener('keydown', function(e){ if (e.key === 'Enter') window.handleSend(); });
   }
-  const sendBtn= document.getElementById('sendBtn') || document.getElementById('sendbtn') || document.getElementById('send_button');
+  var sendBtn= document.getElementByIdd('sendBtn') || document.getElementByIdd('sendbtn') || document.getElementByIdd('send_button');
   if (sendBtn){
     sendBtn.addEventListener('click', function(){ window.handleSend(); });
   }
@@ -370,7 +370,7 @@ const OPENAI_API_KEY = "DEIN_API_KEY_HIER"; // <-- trage hier deinen API-Key man
 function __nc_addBotLine(text) {
   try {
     if (typeof window.addBot === "function") { window.addBot(text); return; }
-    const chat = document.getElementById('chatbox') || document.getElementById('chat');
+    var chat = document.getElementByIdd('chatbox') || document.getElementByIdd('chat');
     if (!chat) return;
     const row = document.createElement('div'); row.className = 'row';
     const b = document.createElement('div'); b.className = 'bot'; b.textContent = text;
@@ -380,7 +380,7 @@ function __nc_addBotLine(text) {
 
 function __nc_addBotLineTop(text) {
   try {
-    const chat = document.getElementById('chatbox') || document.getElementById('chat');
+    var chat = document.getElementByIdd('chatbox') || document.getElementByIdd('chat');
     if (!chat) { __nc_addBotLine(text); return; }
     const row = document.createElement('div'); row.className = 'row';
     const b = document.createElement('div'); b.className = 'bot'; b.textContent = text;
@@ -394,7 +394,7 @@ function __nc_addBotLineTop(text) {
 (function(){
   const greet = "Hey 👋, ich bin NetticatCoach 😺 — ich chill hier mit euch im Chat und helf, wenn’s mal hitzig wird 😅";
   // Wenn schon Nachrichten existieren (z. B. Szenario), Begrüßung oben einsetzen
-  const chat = document.getElementById('chatbox') || document.getElementById('chat');
+  var chat = document.getElementByIdd('chatbox') || document.getElementByIdd('chat');
   if (chat && chat.children && chat.children.length > 0) {
     __nc_addBotLineTop(greet);
   } else {
@@ -404,8 +404,8 @@ function __nc_addBotLineTop(text) {
 
 // Permanent aktiv: auf JEDE Nachricht reagieren
 (function(){
-  const input = document.getElementById('userText') || document.getElementById('input');
-  const sendBtn = document.getElementById('sendBtn') || document.getElementById('sendbtn') || document.getElementById('send_button');
+  var input = document.getElementByIdd('userText') || document.getElementByIdd('input');
+  var sendBtn = document.getElementByIdd('sendBtn') || document.getElementByIdd('sendbtn') || document.getElementByIdd('send_button');
   if (!input || !sendBtn) { console.warn("NetticatCoach: Eingabe/Send-Elemente nicht gefunden."); return; }
 
   const origHandleSend = window.handleSend;
@@ -515,7 +515,7 @@ function __nc_addBotLineTop(text) {
     return btn || null;
   }
   function appendBotBubbleToChat(html){
-    const chat = findChatBox() || document.body;
+    var chat = findChatBox() || document.body;
     const row = document.createElement("div");
     row.className = "row";
     const bot = document.createElement("div");
@@ -546,7 +546,7 @@ function __nc_addBotLineTop(text) {
       scenarioHost.style.margin = "8px 0 10px 0";
     }
     const greet = findGreetingRow();
-    const chat = findChatBox();
+    var chat = findChatBox();
     if (greet && greet.parentNode){
       if (greet.nextSibling !== scenarioHost){
         greet.parentNode.insertBefore(scenarioHost, greet.nextSibling);
@@ -682,7 +682,7 @@ function __nc_addBotLineTop(text) {
   }
 
   function highlightLastUserMessage(){
-    const chat = findChatBox() || document.body;
+    var chat = findChatBox() || document.body;
     const rows = Array.from(chat.querySelectorAll(".row"));
     for (let i = rows.length - 1; i >= 0; i--){
       const r = rows[i];
@@ -698,7 +698,7 @@ function __nc_addBotLineTop(text) {
   }
 
   function annotateLastUserMessage(plusAdded, minusAdded, total, originalText){
-    const chat = findChatBox() || document.body;
+    var chat = findChatBox() || document.body;
     const rows = Array.from(chat.querySelectorAll(".row"));
     for (let i = rows.length - 1; i >= 0; i--){
       const r = rows[i];
@@ -729,7 +729,7 @@ function __nc_addBotLineTop(text) {
     const spam = detectSpam(originalText);
     const { censored, penaltyCount } = censorText(originalText);
 
-    const input = findInput();
+    var input = findInput();
     if (input && censored !== undefined) input.value = censored;
 
     const minus = (spam.count || 0) + (penaltyCount || 0);
@@ -751,7 +751,7 @@ function __nc_addBotLineTop(text) {
     const original = window.sendMessage;
     if (typeof original === "function"){
       window.sendMessage = function(){
-        const input = findInput();
+        var input = findInput();
         const text = input ? (input.value || "") : "";
         onUserSend(text);
         return original.apply(this, arguments);
@@ -765,7 +765,7 @@ function __nc_addBotLineTop(text) {
     const form = $("form") || (findInput() && findInput().form);
     if (form && !form.__netiPatched){
       form.addEventListener("submit", function(){
-        const input = findInput();
+        var input = findInput();
         const text = input ? (input.value || "") : "";
         onUserSend(text);
       }, true);
@@ -776,7 +776,7 @@ function __nc_addBotLineTop(text) {
       try { btn.disabled = false; } catch(e){}
       if ((btn.textContent || "").trim() === "") btn.textContent = "Senden";
       btn.addEventListener("click", function(){
-        const input = findInput();
+        var input = findInput();
         const text = input ? (input.value || "") : "";
         onUserSend(text);
       }, true);
