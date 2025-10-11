@@ -1097,3 +1097,148 @@ function __nc_addBotLineTop(text) {
 /* === /Scoring & Ranking === */
 </script></body>
 </html>
+
+
+<script>
+/* === Fix Pack: robust send+score + stronger moderation === */
+(function(){
+  // Helper selectors
+  function $(sel){ return document.querySelector(sel); }
+  function byId(id){ return document.getElementById(id); }
+
+  // Chat elements
+  var CHAT  = byId('chat') || byId('chatbox') || document.querySelector('.chat-body') || document.querySelector('main') || document.body;
+  var INPUT = byId('userText') || document.querySelector('input[type="text"], textarea');
+  var SEND  = byId('sendBtn') || byId('send') || byId('send-button') || document.querySelector('button[type="submit"]') || (function(){
+    var cand = Array.from(document.querySelectorAll('button')).find(b=>/send|senden|absenden/i.test(b.textContent||""));
+    return cand || null;
+  })();
+
+  if (!CHAT || !INPUT || !SEND){ console.warn('[FixPack] required elements missing'); return; }
+
+  // Ensure fallback lists are rich if index didn't supply them
+  (function ensureLists(){
+    window.BAD_RACIST = Array.isArray(window.BAD_RACIST) ? window.BAD_RACIST : [];
+    window.BAD_SEXIST = Array.isArray(window.BAD_SEXIST) ? window.BAD_SEXIST : [];
+    window.HOMOPHOB   = Array.isArray(window.HOMOPHOB)   ? window.HOMOPHOB   : [];
+    window.BAD_RUDE   = Array.isArray(window.BAD_RUDE)   ? window.BAD_RUDE   : [];
+
+    var extraSexist = ['hure','hurensohn','fotze','bitch'];
+    var extraHomoph = ['lesbe','lesbisch','schwuchtel','homo'];
+    var extraRude   = ['arsch','arschloch','depp','idiot','scheiße','scheisse','spasti','trottel','fick','ficken','fickt','fickst','fickte','gefickt','fick dich','fickdich'];
+
+    extraSexist.forEach(w=>{ if (!window.BAD_SEXIST.includes(w)) window.BAD_SEXIST.push(w); });
+    extraHomoph.forEach(w=>{ if (!window.HOMOPHOB.includes(w)) window.HOMOPHOB.push(w); });
+    extraRude.forEach(w=>{ if (!window.BAD_RUDE.includes(w)) window.BAD_RUDE.push(w); });
+  })();
+
+  // Analyzer adapter: builds on existing window.analyze if present
+  var _prevAnalyze = (typeof window.analyze === 'function') ? window.analyze : null;
+  function isMatch(list, msg){
+    var L = (msg||'').toLowerCase();
+    return (list||[]).some(function(w){
+      if (!w) return false;
+      var s = String(w).toLowerCase();
+      if (s==='fick dich') return /\bfick\s*dich\b/.test(L);
+      return L.includes(s);
+    });
+  }
+  function policyAnalyze(text){
+    var base = _prevAnalyze ? (_prevAnalyze(text) || {}) : {};
+    var badRS = isMatch([].concat(window.BAD_RACIST, window.BAD_SEXIST, window.HOMOPHOB), text);
+    var badRU = isMatch(window.BAD_RUDE, text);
+    if (badRS){
+      base.bad = true; base.delta = -2; base.category = 'rassistisch/sexistisch';
+      base.notes = base.notes||[]; base.notes.unshift('⚠️ Rassistische/sexistische Sprache (-2).');
+      return base;
+    }
+    if (badRU){
+      base.bad = true; base.delta = -1; base.category = 'unhöflich';
+      base.notes = base.notes||[]; base.notes.unshift('⚠️ Unhöfliche Sprache (-1).');
+      return base;
+    }
+    // Positive
+    var L = String(text||'').trim().toLowerCase();
+    if (/^ich\b/.test(L)){ base.bad=false; base.delta=2; base.category='ich-form'; base.notes=base.notes||[]; base.notes.unshift('👍 Ich-Form (+2).'); return base; }
+    if (/(\bbitte\b|\bdanke\b|könntest|könnten|würdest du|würdest|würde|entschuldigung|entschuldige)/.test(L)){ base.bad=false; base.delta=1; base.category='höflich'; base.notes=base.notes||[]; base.notes.unshift('🙂 Höfliche Form (+1).'); return base; }
+    base.bad=false; base.delta=0; base.category='neutral'; return base;
+  }
+  window.analyze = policyAnalyze;
+
+  // Supabase client (reuse globals from previous script)
+  if (!(window.supabase && window.SUPABASE_URL && window.SUPABASE_ANON)){
+    console.warn('[FixPack] Supabase globals missing; scoring will work locally only');
+  }
+  var sb = (window.supabase && window.SUPABASE_URL) ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON) : null;
+
+  var P = new URLSearchParams(location.search);
+  var CLS = P.get('cls') || 'default';
+  var NICK = P.get('nick') || 'Gast';
+
+  // Helpers to show bubbles
+  function addRow(text, cls){
+    var r = document.createElement('div'); r.className='row';
+    var b = document.createElement('div'); b.className=cls||'you'; b.textContent=text;
+    r.appendChild(b); CHAT.appendChild(r); CHAT.scrollTop = CHAT.scrollHeight;
+    return r;
+  }
+  function addBot(note){ addRow(note, 'bot'); }
+
+  // Wrap a sender function (handleSend or doSend or our own)
+  var _handleSend = (typeof window.handleSend === 'function') ? window.handleSend : null;
+  var _doSend     = (typeof window.doSend     === 'function') ? window.doSend     : null;
+
+  async function sendWrapper(orig){
+    var text = (INPUT.value||'').trim();
+    if (!text) return;
+
+    var res = window.analyze ? (window.analyze(text) || {}) : { bad:false, delta:0 };
+    // Show locally with moderation
+    if (res.bad){
+      addRow('⛔ Nachricht verborgen (unangemessene Sprache)','you');
+      addBot((res.notes && res.notes.length ? res.notes.join(' ') : '⚠️ Bitte respektvoll formulieren.'));
+      // score (negative) but DO NOT persist bad message
+      if (typeof window.setScore === 'function') try{ window.setScore(Number(res.delta||0)); }catch(e){}
+      INPUT.value=''; INPUT.focus();
+      return;
+    }
+
+    // Call original sender to keep UI/flow unchanged
+    if (typeof orig === 'function'){ await orig(); }
+    else {
+      // minimal local append in case orig doesn't exist
+      addRow(NICK+': '+text,'you');
+      INPUT.value='';
+    }
+
+    // Score positive/neutral
+    if (typeof window.setScore === 'function') try{ window.setScore(Number(res.delta||0)); }catch(e){}
+  }
+
+  // Rebind click/enter to our wrapper (without visual changes)
+  try {
+    // detach existing listeners by cloning button
+    var clone = SEND.cloneNode(true);
+    SEND.parentNode.replaceChild(clone, SEND);
+    SEND = clone;
+  } catch(e){}
+  SEND.addEventListener('click', function(){ sendWrapper(_handleSend || _doSend); });
+  INPUT.addEventListener('keydown', function(e){ if (e.key === 'Enter') sendWrapper(_handleSend || _doSend); });
+
+  // Realtime: make sure we always render *others* too
+  // If a Supabase subscription exists already, we rely on it; else set up a minimal one.
+  if (sb){
+    try {
+      sb.channel('room-fix:'+CLS)
+        .on('postgres_changes', { event:'INSERT', schema:'public', table:'messages', filter:`cls=eq.${CLS}` }, function(payload){
+          var row = (payload && payload.new) || {};
+          // Always show, even same nick (prevents "no other user visible" confusion)
+          addRow(String(row.nick||'')+': '+String(row.body||''), 'you');
+        })
+        .subscribe();
+    } catch(e){ console.warn('[FixPack] subscribe error', e); }
+  }
+
+  console.log('[FixPack] send+score+moderation wiring active.');
+})();
+</script>
